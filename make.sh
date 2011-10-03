@@ -21,10 +21,10 @@ for TARGET in "runGen"
   EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
   rm -f $TMPZIP
   # include utils
-  zip -o $TMPZIP -r pandawnutil
+  zip -o $TMPZIP -R pandawnutil "*.py" "*.c"
   # script main
   cd $EXESRCDIR
-  zip -o $TMPZIP *
+  zip -o $TMPZIP -R . "*.py"
   cd $WORKDIR
   # make self-exracting executable
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
