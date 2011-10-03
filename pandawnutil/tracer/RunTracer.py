@@ -64,7 +64,10 @@ class RunTracer:
                 else:
                     print "  %s uses dummy" % archOpt
             else:
-                print "  %s succeeded" % archOpt                
+                print "  %s succeeded" % archOpt
+        # log name
+        commands.getoutput('touch %s' % self.getLogName())
+        print "Log -> %s" % self.getLogName()
         # return
         return
 

@@ -532,6 +532,15 @@ if useRootCore:
 # TestArea
 setupEnv += "export TestArea=%s; " % workDir
 
+# Tracer On
+try:
+    from pandawnutil.tracer import RunTracer
+    rTracer = RunTracer.RunTracer()
+    rTracer.make()
+    setupEnv += rTracer.getEnvVar()
+except:
+    pass
+
 # make rundir just in case
 commands.getoutput('mkdir %s' % runDir)
 # go to run dir
@@ -834,6 +843,8 @@ if pfcSt != 0:
 # copy PFC
 commands.getoutput('mv %s %s' % (pfcName,currentDir))
 
+# copy tracer log
+commands.getoutput('mv %s %s' % (rTracer.getLogName(),currentDir))
 
 # go back to current dir
 os.chdir(currentDir)

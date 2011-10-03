@@ -2,5 +2,5 @@
 
 unzip -o $0 > /dev/null 2>&1
 PYNAME=`echo $0 | sed -e "s/\(-.*$\)/.py/"`
-exec python -u $PYNAME $@
+exec python -u $PYNAME "$@"
 
