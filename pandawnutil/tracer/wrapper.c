@@ -147,32 +147,6 @@ int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
   return org_call(socket,serv_addr,addrlen); 
 } 
 
-/*
-int execle(const char *path, const char *arg, ..., char * const envp[])
-{
-  int ret;
-  va_list vargs;
-  va_start(vargs,arg);
-  va_end(args);
-  typedef int (*FP_orig)(const char *,char *const [], char *const []);
-  FP_orig org_call = dlsym(((void *) -1l),"execve"); 
-  ret = org_call(path,argv,newenvp); 
-  return ret;
-}
-
-
-int execv(const char *path, char *const arg[])
-{
-  int ret;
-  char subffer[512];
-  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecv: %s",basename(path));
-  pandatracer_putlog(subffer,0);
-  typedef int (*FP_orig)(const char *,char *const []);
-  FP_orig org_call = dlsym(((void *) -1l),"execv"); 
-  ret = org_call(path,arg); 
-  return ret;
-}
-*/
 
 int execve(const char *filename, char *const argv[],
 	   char *const envp[])
