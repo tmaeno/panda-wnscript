@@ -32,7 +32,7 @@ class RunTracer:
         self.logName = self.libBaseDir + '/pandatracerlog.txt'
         outH = open('outfilename.h','w')
         outH.write('const char *pandatracer_outfilename = "%s";\n' % self.logName)
-        outH.write("const char *pandatracer_sofilename = \"%s/'$LIB'/%s.so\";\n" % \
+        outH.write("const char *pandatracer_sofilename = \"%s/$LIB/%s.so\";\n" % \
                    (self.libBaseDir,self.wrapperName))
         outH.close()
         # make lib and lib64

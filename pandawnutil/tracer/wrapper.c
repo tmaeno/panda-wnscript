@@ -54,13 +54,14 @@ void pandatracer_putlog(const char *message, const int loglevel)
   size_t tmpIdx; 
   pid_t pid = getpid();
   char procbuff[maxBufSize];
+  char procmbuff[maxBufSize];
   snprintf(procbuff,sizeof(procbuff)/sizeof(char),"/proc/%d/cmdline",pid); 
   fp = fopen(procbuff,"r");
   if (fp == NULL)
     {
       // proc file not found
-      snprintf(procbuff,sizeof(procbuff)/sizeof(char),"  cmd: PID=%d",pid);
-      strncpy(sbuffer+iLen,procbuff,maxBufSize-iLen);
+      snprintf(procmbuff,sizeof(procmbuff)/sizeof(char),"  cmd: PID=%d",pid);
+      strncpy(sbuffer+iLen,procmbuff,maxBufSize-iLen);
       iLen = strlen(sbuffer);
       if (iLen > maxBufSize)
 	{
@@ -131,7 +132,7 @@ void pandatracer_putlog(const char *message, const int loglevel)
 int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
 { 
   struct sockaddr_in *addrv4 = (struct sockaddr_in *)serv_addr;
-  char subffer[100];
+  char subffer[512];
   char ipaddr[INET_ADDRSTRLEN]; 
   inet_ntop(AF_INET,&(addrv4->sin_addr),ipaddr,sizeof ipaddr); 
   uint16_t iport;
@@ -220,8 +221,8 @@ int execve(const char *filename, char *const argv[],
       // wrapper is not found in LD_PRELOAD
       if (strstr(envp[ldFound],pandatracer_sofilename) == NULL)
 	{
-	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  wrapper is not in LD_PRELOAD",
-                   basename((char *)filename));
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  wrapper=%s is not in LD_PRELOAD=%s",
+                   basename((char *)filename),pandatracer_sofilename,envp[ldFound]);
 	  pandatracer_putlog(subffer,2);
 	}
     }

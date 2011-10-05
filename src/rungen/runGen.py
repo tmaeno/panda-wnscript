@@ -731,16 +731,15 @@ if inputFiles != []:
                 
 # construct command
 com = setupEnv
+tmpTrfName = 'trf.%s.py' % commands.getoutput('uuidgen 2>/dev/null')
+tmpTrfFile = open(tmpTrfName,'w')
 if dbrFile != '' and dbrSetupStr != '':
-    tmpTrfName = 'trf.%s.py' % commands.getoutput('uuidgen 2>/dev/null')
-    tmpTrfFile = open(tmpTrfName,'w')
     tmpTrfFile.write(dbrSetupStr)
-    tmpTrfFile.write('import sys\nstatus=os.system("""%s %s""")\n' % (scriptName,newJobParams))
-    tmpTrfFile.write('status %= 255\nsys.exit(status)\n\n')
-    tmpTrfFile.close()
-    com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)
-else:            
-    com += "%s %s " % (scriptName,newJobParams)
+# wrap commands to invoke execve even if preload is removed/changed
+tmpTrfFile.write('import os,sys\nstatus=os.system("""%s %s""")\n' % (scriptName,newJobParams))
+tmpTrfFile.write('status %= 255\nsys.exit(status)\n\n')
+tmpTrfFile.close()
+com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)
 
 # temporary output to avoid MemeoryError
 tmpOutput = 'tmp.stdout.%s' % commands.getoutput('uuidgen 2>/dev/null')
