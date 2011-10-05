@@ -213,7 +213,18 @@ int execve(const char *filename, char *const argv[],
 	      pandatracer_putlog(subffer,0);
 	    }
 	}
-    }	  
+    }
+  else
+    // check LD_PRELOAD
+    {
+      // wrapper is not found in LD_PRELOAD
+      if (strstr(envp[ldFound],pandatracer_sofilename) == NULL)
+	{
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  wrapper is not in LD_PRELOAD",
+                   basename((char *)filename));
+	  pandatracer_putlog(subffer,2);
+	}
+    }
   typedef int (*FP_orig)(const char *,char *const [], char *const []);
   FP_orig org_call = dlsym(((void *) -1l),"execve"); 
   ret = org_call(filename,argv,envp); 
