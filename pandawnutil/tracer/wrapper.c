@@ -182,7 +182,7 @@ int execve(const char *filename, char *const argv[],
       if (pandaFound < 0)
 	{
 	  // either LD_PRELOAD or PANDA_LD_PRELOAD not found
-	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  no PANDA/LD_PRELOAD",
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  no PANDA/LD_PRELOAD",
 		   basename((char *)filename));
 	  pandatracer_putlog(subffer,2);
 	}
@@ -198,7 +198,7 @@ int execve(const char *filename, char *const argv[],
 	  if (iLen >= sizeof(ldbffer))
 	    {
 	      // too long
-	      snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  too long PANDA_PRELOAD",
+	      snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  too long PANDA_PRELOAD",
 		       basename((char *)filename));
 	      pandatracer_putlog(subffer,2);
 	    }
@@ -209,7 +209,7 @@ int execve(const char *filename, char *const argv[],
 	      // copy to PANDA_PRELOAD's string
 	      strncpy(envp[pandaFound],ldbffer,strlen(ldbffer));
 	      envp[pandaFound][strlen(ldbffer)] = '\0';
-	      snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  new %s",
+	      snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  new %s",
 		       basename((char *)filename),envp[pandaFound]);
 	      pandatracer_putlog(subffer,0);
 	    }
@@ -221,9 +221,22 @@ int execve(const char *filename, char *const argv[],
       // wrapper is not found in LD_PRELOAD
       if (strstr(envp[ldFound],pandatracer_sofilename) == NULL)
 	{
-	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: %s  wrapper=%s is not in LD_PRELOAD=%s",
+	  // append
+	  size_t iLen;
+	  iLen = strlen(envp[ldFound]);
+	  envp[ldFound][iLen] = ':';
+	  iLen += 1;
+	  strncpy(envp[ldFound]+iLen,pandatracer_sofilename,strlen(pandatracer_sofilename));
+	  iLen += strlen(pandatracer_sofilename);
+	  envp[ldFound][iLen] = '\0';
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  modified %s",
+		   basename((char *)filename),envp[ldFound]);
+	  pandatracer_putlog(subffer,0);
+	  /*
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  wrapper=%s is not in %s",
                    basename((char *)filename),pandatracer_sofilename,envp[ldFound]);
 	  pandatracer_putlog(subffer,2);
+	  */
 	}
     }
   typedef int (*FP_orig)(const char *,char *const [], char *const []);
