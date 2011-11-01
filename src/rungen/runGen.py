@@ -34,6 +34,7 @@ newPrefix    = ''
 directIn     = False
 usePFCTurl   = False
 lfcHost      = ''
+givenPFN     = False
 envvarFile   = ''
 liveLog      = ''
 sourceURL    = 'https://gridui07.usatlas.bnl.gov:25443'
@@ -58,7 +59,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "skipInputByRetry=","writeInputToTxt=",
 			    "rootVer=","enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
-			    "useRootCore"
+			    "useRootCore","givenPFN"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -111,6 +112,8 @@ for o, a in opts:
         rootVer = a 
     if o == "--useRootCore":
         useRootCore = True
+    if o == "--givenPFN":
+        givenPFN = True
 
 # dump parameter
 try:
@@ -140,6 +143,7 @@ try:
     print "writeInputToTxt",writeInputToTxt
     print "rootVer",rootVer
     print "useRootCore",useRootCore
+    print "givenPFN",givenPFN
     print "==================="
 except:
     type, value, traceBack = sys.exc_info()
@@ -404,7 +408,7 @@ except:
     print 'ERROR : Failed to collect GUIDs : %s - %s' % (type,value)
 
 # scan LFC/LRC for direct reading
-if directIn:
+if directIn and not givenPFN:
     if usePFCTurl:
         # Use the TURLs from PoolFileCatalog.xml created by pilot
         print "===== GUIDs and TURLs in PFC ====="
@@ -467,7 +471,6 @@ sys.exit(st)
 # save current dir
 currentDir = os.getcwd()
 currentDirFiles = os.listdir('.')
-
 print "Running in",currentDir
 
 # crate work dir
@@ -547,7 +550,7 @@ commands.getoutput('mkdir %s' % runDir)
 os.chdir(runDir)
 
 # check input files
-if inputFiles != []:
+if inputFiles != [] and not givenPFN:
     print "=== check input files ==="
     newInputs = []
     inputFileMap = {}
