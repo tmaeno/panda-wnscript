@@ -526,7 +526,14 @@ if useAthenaPackages:
 # setup root
 if rootVer != '':
     rootBinDir = workDir + '/pandaRootBin'
-    setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; root.exe -q; ' % rootBinDir
+    # use CVMFS if setup script is available
+    if os.path.exists('%s/pandaUseCvmfSetup.sh' % rootBinDir):
+        iFile = open('%s/pandaUseCvmfSetup.sh' % rootBinDir)
+        setupEnv += iFile.read()
+        iFile.close()
+        setupEnv += ' root.exe -q;'
+    else:
+        setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; root.exe -q; ' % rootBinDir
 # RootCore
 if useRootCore:
     pandaRootCoreWD = os.path.abspath(runDir+'/__panda_rootCoreWorkDir')

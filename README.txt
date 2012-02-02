@@ -1,5 +1,8 @@
 ** Release Note
 
+2/2/2012
+  * to use ROOT on CVMFS
+
 11/7/2011
   * using raw string in os.system
 
