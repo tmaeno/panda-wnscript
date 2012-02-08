@@ -45,6 +45,7 @@ void pandatracer_putlog(const char *message, const int loglevel)
     }
   // add message
   strncpy(sbuffer+iLen,message,maxBufSize-iLen);
+  sbuffer[maxBufSize-1] = '\0';
   iLen = strlen(sbuffer);
   if (iLen > maxBufSize)
     {
@@ -62,6 +63,7 @@ void pandatracer_putlog(const char *message, const int loglevel)
       // proc file not found
       snprintf(procmbuff,sizeof(procmbuff)/sizeof(char),"  cmd: PID=%d",pid);
       strncpy(sbuffer+iLen,procmbuff,maxBufSize-iLen);
+      sbuffer[maxBufSize-1] = '\0';
       iLen = strlen(sbuffer);
       if (iLen > maxBufSize)
 	{
@@ -71,6 +73,7 @@ void pandatracer_putlog(const char *message, const int loglevel)
   else
     {
       strncpy(sbuffer+iLen,"  cmd: ",maxBufSize-iLen);
+      sbuffer[maxBufSize-1] = '\0';
       iLen = strlen(sbuffer);
       if (iLen > maxBufSize)
 	{
@@ -92,10 +95,7 @@ void pandatracer_putlog(const char *message, const int loglevel)
 	}
       // add exe name
       strncpy(sbuffer+iLen,basename(procbuff),maxBufSize-iLen);
-      if (strlen(basename(procbuff)) > maxBufSize-iLen)
-	{
-	  sbuffer[maxBufSize-1] = '\0';
-	}
+      sbuffer[maxBufSize-1] = '\0';
       iLen = strlen(sbuffer);
       if (iLen > maxBufSize)
 	{
@@ -104,10 +104,10 @@ void pandatracer_putlog(const char *message, const int loglevel)
     }
   // add newline+delimiter
   strncpy(sbuffer+iLen,"\n\0",maxBufSize-iLen);
-  iLen = strlen(sbuffer);
   // delimiter just in case
   sbuffer[maxBufSize-2] = '\n';  
   sbuffer[maxBufSize-1] = '\0';
+  iLen = strlen(sbuffer);
   // open file
   fp = fopen(pandatracer_outfilename,"a");
   if (fp == NULL)

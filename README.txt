@@ -1,5 +1,8 @@
 ** Release Note
 
+2/8/2012
+  * set \0 before strlen in wrapper
+
 2/2/2012
   * to use ROOT on CVMFS
 

@@ -15,7 +15,7 @@ rm -rf $DISTDIR/*
 rm -rf $BUILDDIR/*
 
 # loop over all target
-for TARGET in "runGen"
+for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
   do
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
   EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
