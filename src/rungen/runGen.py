@@ -533,7 +533,7 @@ if rootVer != '':
         iFile.close()
         setupEnv += ' root.exe -q;'
     else:
-        setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; root.exe -q; ' % rootBinDir
+        setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH; root.exe -q; ' % rootBinDir
 # RootCore
 if useRootCore:
     pandaRootCoreWD = os.path.abspath(runDir+'/__panda_rootCoreWorkDir')
@@ -760,12 +760,6 @@ print "=== execute ==="
 print com
 # run athena
 if not debugFlag:
-    if liveLog != '':
-        # create empty log
-        commands.getstatusoutput('cat /dev/null > %s' % tmpOutput)
-        # start watcher
-        logWatcher = LogWatcher(tmpOutput,liveLog)
-        logWatcher.start()
     # write stdout to tmp file
     com += ' > %s 2> %s' % (tmpOutput,tmpStderr)
     status,out = commands.getstatusoutput(com)
@@ -779,8 +773,12 @@ if not debugFlag:
     except:
         pass
     try:
+        stderrSection = True
         tmpErrFile = open(tmpStderr)
         for line in tmpErrFile:
+            if stderrSection:
+                stderrSection = False
+                print "\n=== stderr ==="
             print line[:-1]
         tmpErrFile.close()
     except:
@@ -791,10 +789,6 @@ if not debugFlag:
             print out.split('\n')[-1]
     except:
         pass
-    if liveLog != '':        
-        # terminate watcher
-        logWatcher.terminate()
-        logWatcher.join()
 else:
     status = os.system(com)
 

@@ -1,5 +1,8 @@
 ** Release Note
 
+7/11/2012
+  * set PYTHONPATH for corrupted ROOT.pyc in non-CVMFS rootVer
+
 2/8/2012
   * set \0 before strlen in wrapper
 
