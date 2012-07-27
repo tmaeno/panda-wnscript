@@ -432,14 +432,23 @@ sys.exit(st)
             lfcSh = '%s.sh' % commands.getoutput('uuidgen 2>/dev/null')
             if envvarFile != '':
                 commands.getoutput('cat %s > %s' % (envvarFile,lfcSh))
-            # check LFC module in grid runtime
-            print "->check LFC.py"
+            # check LFC module
+            foundGoodPython = False
+            print "->check LFC.py with python" 
             lfcS,lfcO = commands.getstatusoutput('python -c "import lfc"')
             print lfcS
-            #print lfcO
             if lfcS == 0:
                 commands.getoutput('echo "python %s" >> %s' % (lfcPy,lfcSh))
-            else:
+                foundGoodPython = True
+            if not foundGoodPython:
+                if os.environ.has_key('ATLAS_PYTHON_PILOT'):
+                    print "->check LFC.py with $ATLAS_PYTHON_PILOT=%s" % os.environ['ATLAS_PYTHON_PILOT']
+                    lfcS,lfcO = commands.getstatusoutput('%s -c "import lfc"' % os.environ['ATLAS_PYTHON_PILOT'])
+                    print lfcS
+                    if lfcS == 0:
+                        commands.getoutput('echo "%s %s" >> %s' % (os.environ['ATLAS_PYTHON_PILOT'],lfcPy,lfcSh))
+                        foundGoodPython= True
+            if not foundGoodPython:            
                 # use system python
                 print "->use /usr/bin/python"
                 commands.getoutput('echo "/usr/bin/python %s" >> %s' % (lfcPy,lfcSh))

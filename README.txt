@@ -1,5 +1,8 @@
 ** Release Note
 
+7/27/2012
+  * use ATLAS_PYTHON_PILOT for lfc.py check if it exists  
+
 7/11/2012
   * set PYTHONPATH for corrupted ROOT.pyc in non-CVMFS rootVer
 
@@ -17,3 +20,5 @@
 
 10/27/2011
   * change LD_PRELOAD when wrapper.so is missing
+
+ LocalWords:  lfc
