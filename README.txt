@@ -1,5 +1,8 @@
 ** Release Note
 
+2/21/2013
+  * added --useMana
+
 7/27/2012
   * use ATLAS_PYTHON_PILOT for lfc.py check if it exists  
 

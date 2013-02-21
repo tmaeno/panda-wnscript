@@ -48,6 +48,8 @@ skipInputByRetry = []
 writeInputToTxt = ''
 rootVer   = ''
 useRootCore = False
+useMana   = False
+
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                            ["pilotpars","debug","oldPrefix=","newPrefix=",
@@ -59,7 +61,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "skipInputByRetry=","writeInputToTxt=",
 			    "rootVer=","enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
-			    "useRootCore","givenPFN"
+			    "useRootCore","givenPFN","useMana"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -114,6 +116,8 @@ for o, a in opts:
         useRootCore = True
     if o == "--givenPFN":
         givenPFN = True
+    if o == "--useMana":
+        useMana = True
 
 # dump parameter
 try:
@@ -144,6 +148,7 @@ try:
     print "rootVer",rootVer
     print "useRootCore",useRootCore
     print "givenPFN",givenPFN
+    print "useMana",useMana
     print "==================="
 except:
     type, value, traceBack = sys.exc_info()
@@ -547,6 +552,13 @@ if rootVer != '':
 if useRootCore:
     pandaRootCoreWD = os.path.abspath(runDir+'/__panda_rootCoreWorkDir')
     setupEnv += 'source %s/RootCore/scripts/grid_run.sh %s; ' % (pandaRootCoreWD,pandaRootCoreWD) 
+
+# mana
+if useMana:
+    setupEnv += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase; "
+    setupEnv += "source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh --quiet; "
+    setupEnv += "source $ATLAS_LOCAL_ROOT_BASE/packageSetups/atlasLocalManaSetup.sh --manaVersion ${manaVersionVal}; "
+    setupEnv += "cd %s; hwaf asetup mana;  hwaf configure; cd %s; " % (workDir,runDir)
 
 # TestArea
 setupEnv += "export TestArea=%s; " % workDir
