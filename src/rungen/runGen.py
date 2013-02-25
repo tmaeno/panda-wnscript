@@ -577,7 +577,7 @@ commands.getoutput('mkdir %s' % runDir)
 # go to run dir
 os.chdir(runDir)
 # customize .rootrc in the current dir and HOME
-rootRcDirs = ['.']
+rootRcDirs = [runDir]
 if os.environ.has_key('HOME'):
     #rootRcDirs.append(os.environ['HOME'])
     pass
