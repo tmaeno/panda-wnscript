@@ -576,6 +576,23 @@ except:
 commands.getoutput('mkdir %s' % runDir)
 # go to run dir
 os.chdir(runDir)
+# customize .rootrc in the current dir and HOME
+rootRcDirs = ['.']
+if os.environ.has_key('HOME'):
+    #rootRcDirs.append(os.environ['HOME'])
+    pass
+# the number of PROOF workers
+numProofWokers = 1
+if os.environ.has_key('ATHENA_PROC_NUMBER'):
+    numProofWokers = os.environ['ATHENA_PROC_NUMBER']
+for rootRcDir in rootRcDirs:    
+    try:
+        from pandawnutil.root import RootRC
+        RootRC.customizeRootRC(rootRcDir,numProofWokers)
+        print "\n=== dump %s/.rootrc ===" % rootRcDir
+        print RootRC.dumpRootRC(rootRcDir)
+    except:
+        pass
 
 # check input files
 if inputFiles != [] and not givenPFN:

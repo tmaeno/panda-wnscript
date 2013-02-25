@@ -1,5 +1,8 @@
 ** Release Note
 
+2/25/2013
+  * limiting the number of PROOF workers using .rootrc
+
 2/21/2013
   * added --useMana
 
