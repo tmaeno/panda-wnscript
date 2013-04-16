@@ -1,5 +1,11 @@
 ** Release Note
 
+4/16/2013
+  * added a protection against missing unzip
+
+3/14/2013
+  * added --manaVer
+
 2/25/2013
   * limiting the number of PROOF workers using .rootrc
 

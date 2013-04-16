@@ -49,6 +49,7 @@ writeInputToTxt = ''
 rootVer   = ''
 useRootCore = False
 useMana   = False
+manaVer   = ''
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -61,7 +62,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "skipInputByRetry=","writeInputToTxt=",
 			    "rootVer=","enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
-			    "useRootCore","givenPFN","useMana"
+			    "useRootCore","givenPFN","useMana","manaVer="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -118,6 +119,8 @@ for o, a in opts:
         givenPFN = True
     if o == "--useMana":
         useMana = True
+    if o == "--manaVer":
+        manaVer = a
 
 # dump parameter
 try:
@@ -149,6 +152,7 @@ try:
     print "useRootCore",useRootCore
     print "givenPFN",givenPFN
     print "useMana",useMana
+    print "manaVer",manaVer
     print "==================="
 except:
     type, value, traceBack = sys.exc_info()
@@ -557,7 +561,12 @@ if useRootCore:
 if useMana:
     setupEnv += "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase; "
     setupEnv += "source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh --quiet; "
-    setupEnv += "source $ATLAS_LOCAL_ROOT_BASE/packageSetups/atlasLocalManaSetup.sh --manaVersion ${manaVersionVal}; "
+    setupEnv += "source $ATLAS_LOCAL_ROOT_BASE/packageSetups/atlasLocalManaSetup.sh --manaVersion "
+    if manaVer != '':
+        setupEnv += manaVer
+    else:
+        setupEnv += "${manaVersionVal}"
+    setupEnv += "; "
     setupEnv += "cd %s; hwaf asetup mana;  hwaf configure; cd %s; " % (workDir,runDir)
 
 # TestArea
