@@ -137,7 +137,9 @@ int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
   inet_ntop(AF_INET,&(addrv4->sin_addr),ipaddr,sizeof ipaddr); 
   uint16_t iport;
   iport = ntohs(addrv4->sin_port);
-  if ((addrv4->sin_family == AF_INET) && (iport != 53)) 
+  const char * loopback_addr = "127.0.0.1";
+  if ((addrv4->sin_family == AF_INET) && (iport != 53) && 
+      strncmp(ipaddr,loopback_addr,sizeof ipaddr) != 0) 
     {
       snprintf(subffer,sizeof(subffer)/sizeof(char),"connect: %s:%u",
 	       ipaddr,iport);
@@ -191,7 +193,7 @@ int execve(const char *filename, char *const argv[],
 	  size_t iLen;
 	  // add LD_PRELOAD=
 	  strncpy(ldbffer,ld_preload,strlen(ld_preload));
-	  iLen = strlen(ldbffer);
+	  iLen = strlen(ld_preload);
 	  // copy PANDA_PRELOAD
 	  strncpy(ldbffer+iLen,envp[pandaFound]+strlen(panda_preload),sizeof(ldbffer)-iLen);
 	  iLen += strlen(envp[pandaFound])-strlen(panda_preload);
@@ -232,11 +234,6 @@ int execve(const char *filename, char *const argv[],
 	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  modified %s",
 		   basename((char *)filename),envp[ldFound]);
 	  pandatracer_putlog(subffer,0);
-	  /*
-	  snprintf(subffer,sizeof(subffer)/sizeof(char),"evecve: exe=%s  wrapper=%s is not in %s",
-                   basename((char *)filename),pandatracer_sofilename,envp[ldFound]);
-	  pandatracer_putlog(subffer,2);
-	  */
 	}
     }
   typedef int (*FP_orig)(const char *,char *const [], char *const []);
@@ -244,4 +241,3 @@ int execve(const char *filename, char *const argv[],
   ret = org_call(filename,argv,envp); 
   return ret;
 }
-  

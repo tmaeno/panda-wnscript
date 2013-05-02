@@ -1,5 +1,9 @@
 ** Release Note
 
+5/3/2013
+  * modified tracer to ignore loopback
+  * fixed tracer for execve
+
 5/2/2013
   * modified tracer to ignore non AF_INET connections
 
