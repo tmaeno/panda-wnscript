@@ -1,5 +1,8 @@
 ** Release Note
 
+5/2/2013
+  * modified tracer to ignore non AF_INET connections
+
 4/16/2013
   * added a protection against missing unzip
 

@@ -137,7 +137,7 @@ int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
   inet_ntop(AF_INET,&(addrv4->sin_addr),ipaddr,sizeof ipaddr); 
   uint16_t iport;
   iport = ntohs(addrv4->sin_port);
-  if (iport != 53) 
+  if ((addrv4->sin_family == AF_INET) && (iport != 53)) 
     {
       snprintf(subffer,sizeof(subffer)/sizeof(char),"connect: %s:%u",
 	       ipaddr,iport);
