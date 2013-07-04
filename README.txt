@@ -1,5 +1,8 @@
 ** Release Note
 
+7/4/2013
+  * removed __DQ2XYZ from PFC for TURL
+
 5/3/2013
   * modified tracer to ignore loopback
   * fixed tracer for execve

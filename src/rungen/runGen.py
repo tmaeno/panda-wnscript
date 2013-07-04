@@ -410,6 +410,7 @@ try:
         # convert UTF8 to Raw
         pfn = str(pfnNode.getAttribute('name'))
         lfn = pfn.split('/')[-1]
+	lfn = re.sub('__DQ2-\d+$','',lfn)
         # append
         directTmpTurl[id] = pfn
 except:
