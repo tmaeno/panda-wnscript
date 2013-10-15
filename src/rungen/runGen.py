@@ -897,6 +897,10 @@ commands.getoutput('mv %s %s' % (pfcName,currentDir))
 # copy tracer log
 commands.getoutput('mv %s %s' % (rTracer.getLogName(),currentDir))
 
+# copy useful files
+for patt in ['runargs.*','runwrapper.*','jobReport.json','log.*']:
+    commands.getoutput('mv -f %s %s' % (patt,currentDir))
+
 # go back to current dir
 os.chdir(currentDir)
 

@@ -1,5 +1,8 @@
 ** Release Note
 
+10/15/2013
+  * copy useful files for _tf.py
+
 7/4/2013
   * removed __DQ2XYZ from PFC for TURL
 
