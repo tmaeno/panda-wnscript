@@ -30,3 +30,20 @@ for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
   chmod +x $EXENAME
 done
+
+# with CVMFS
+for TARGET in "preEvtPick"
+  do
+  EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
+  EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
+  rm -f $TMPZIP
+  # include utils
+  zip -o $TMPZIP -r pandawnutil "*.py" "*.c"
+  # script main
+  cd $EXESRCDIR
+  zip -o $TMPZIP -r . "*.py"
+  cd $WORKDIR
+  # make self-exracting executable
+  cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME
+  chmod +x $EXENAME
+done

@@ -1,5 +1,8 @@
 ** Release Note
 
+11/19/2013
+  * added preEvtPick
+
 10/15/2013
   * copy useful files for _tf.py
 
