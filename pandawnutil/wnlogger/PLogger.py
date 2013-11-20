@@ -1,3 +1,4 @@
+import sys
 import logging
 
 rootLog = None
@@ -17,7 +18,7 @@ def getPandaLogger():
     # add StreamHandler if no handler
     if rootLog.handlers == []:
         rootLog.setLevel(logging.DEBUG)
-        console = logging.StreamHandler()
+        console = logging.StreamHandler(sys.stdout)
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
         #formatter = logging.Formatter('%(levelname)s : %(message)s')
         console.setFormatter(formatter)

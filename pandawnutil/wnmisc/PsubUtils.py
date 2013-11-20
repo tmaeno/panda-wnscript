@@ -263,7 +263,7 @@ def getDSsFilesByRunsEvents(curDir,runEventTxt,dsType,streamName,tmpLog,dsPatt='
         # set filelist
         if not tmpLFN in tmpLFNList:
             tmpLFNList.append(tmpLFN)
-            filelist.append(tmpLFN)
+            filelist.append({'lfn':tmpLFN})
         # set inDS    
         if not tmpDsName in tmpDsNameList:
             tmpDsNameList.append(tmpDsName)

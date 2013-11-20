@@ -40,6 +40,13 @@ optP.add_option('--eventPickStagedDS',action='store',dest='eventPickStagedDS',de
 optP.add_option('--eventPickAmiTag',action='store',dest='eventPickAmiTag',default='',
                 type='string', help='AMI tag used to match TAG collections names. This option is required when you are interested in older data than the latest one. Either \ or "" is required when a wild-card is used. e.g., f2\*')
 
+# dummy parameters
+optP.add_option('--oldPrefix',action='store',dest='oldPrefix')
+optP.add_option('--newPrefix',action='store',dest='newPrefix')
+optP.add_option('--lfcHost',action='store',dest='lfcHost')
+optP.add_option('--inputGUIDs',action='store',dest='inputGUIDs')
+optP.add_option('--usePFCTurl',action='store',dest='usePFCTurl')
+
 # get logger
 tmpLog = PLogger.getPandaLogger()
 tmpLog.info('start')

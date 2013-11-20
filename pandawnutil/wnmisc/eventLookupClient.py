@@ -109,9 +109,14 @@ class eventLookupClient:
 
    def talkToServer(self, url, args):
       encoded_args = urllib.urlencode(args)
+      dbg_args = {}
+      for arg,val in args.iteritems():
+         if arg in ['cert_proxy']:
+            continue
+         dbg_args[arg] = val
       if self.debug:
          print "Contacting URL: " + url
-         print encoded_args
+         print dbg_args
 
       for _try in range(1,6):
          response = urllib.urlopen(url, encoded_args)
