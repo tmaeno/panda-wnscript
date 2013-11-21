@@ -1,6 +1,9 @@
 import re
 import sys
+from dq2.clientapi.DQ2 import DQ2
 from pandawnutil.wnlogger import PLogger
+# have to reset logger since DQ2 tweaks logger
+PLogger.resetLogger()
 
 EC_Failed = 255
 EC_Config = 100
@@ -10,9 +13,6 @@ EC_Config = 100
 def listDatasetsByGUIDs(guids,dsFilter,tmpLog,verbose=False,forColl=False):
     # DQ2 API
     try:
-        from dq2.clientapi.DQ2 import DQ2
-        # have to reset logger since DQ2 tweaks logger
-        tmpLog = PLogger.resetLogger()
         dq2 = DQ2()
         dq2.listDatasetsByGUIDs(guids) 
     except:
@@ -94,7 +94,7 @@ def listDatasetsByGUIDs(guids,dsFilter,tmpLog,verbose=False,forColl=False):
             sys.exit(EC_Failed)
         # get LFN
         if not tmpDsNames[0] in checkedDSList:
-            tmpMap,tmpStat = dq2.listFilesInDataset(tmpDsNames[0],verbose)
+            tmpMap,tmpStamp = dq2.listFilesInDataset(tmpDsNames[0],verbose)
             for tmpGUID,tmpVal in tmpMap.iteritems():
                 guidLfnMap[tmpGUID] = (tmpDsNames[0],tmpVal['lfn'])
             checkedDSList.append(tmpDsNames[0])
@@ -271,3 +271,237 @@ def getDSsFilesByRunsEvents(curDir,runEventTxt,dsType,streamName,tmpLog,dsPatt='
     inDS = inDS[:-1]
     # return
     return inDS,filelist
+
+
+
+# convert GoodRunListXML to datasets
+def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunProdStep='',
+                              goodRunListDS='',verbose=False):
+    tmpLog.info('trying to convert GoodRunListXML to a list of datasets')  
+    # return for failure
+    failedRet = False,'',[]
+    # import pyAMI
+    try:
+        from pyAMI.client import AMIClient
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        print "%s %s" % (errType,errValue)
+        tmpLog.error('cannot import pyAMI module')
+        return failedRet
+    # read XML
+    try:
+        gl_xml = open(goodRunListXML)
+    except:
+        tmpLog.error('cannot open %s' % goodRunListXML)
+        return failedRet
+    # parse XML to get run/lumi
+    runLumiMap = {}
+    import xml.dom.minidom
+    rootDOM = xml.dom.minidom.parse(goodRunListXML)
+    for tmpLumiBlock in rootDOM.getElementsByTagName('LumiBlockCollection'):
+        for tmpRunNode in tmpLumiBlock.getElementsByTagName('Run'):
+            tmpRunNum  = long(tmpRunNode.firstChild.data)
+            for tmpLBRange in tmpLumiBlock.getElementsByTagName('LBRange'):
+                tmpLBStart = long(tmpLBRange.getAttribute('Start'))
+                tmpLBEnd   = long(tmpLBRange.getAttribute('End'))        
+                # append
+                if not runLumiMap.has_key(tmpRunNum):
+                    runLumiMap[tmpRunNum] = []
+                runLumiMap[tmpRunNum].append((tmpLBStart,tmpLBEnd))
+    # make arguments
+    amiArgv = []
+    amiArgv.append("GetGoodDatasetList")
+    amiArgv.append("goodRunList="+gl_xml.read())
+    gl_xml.close()
+    if goodRunDataType != '':
+        amiArgv.append('dataType=%s' % goodRunDataType)
+    if goodRunProdStep != '':    
+        amiArgv.append('prodStep=%s' % goodRunProdStep)
+    if verbose:
+        tmpLog.debug(amiArgv)
+    # convert for wildcard
+    goodRunListDS = goodRunListDS.replace('*','.*')
+    # list of datasets
+    if goodRunListDS == '':
+        goodRunListDS = []
+    else:
+        goodRunListDS = goodRunListDS.split(',')
+    # execute
+    try:
+        amiclient = AMIClient()
+        amiOut = amiclient.execute(amiArgv)
+    except:
+        errType,errValue = sys.exc_info()[:2]
+        tmpLog.error("%s %s" % (errType,errValue))
+        tmpLog.error('pyAMI failed')
+        return failedRet
+    # get dataset map
+    amiOutDict = amiOut.to_dict()
+    if verbose:
+        tmpLog.debug(amiOutDict)
+    if not amiOutDict.has_key('goodDatasetList'):
+        tmpLog.error("output from pyAMI doesn't contain goodDatasetList")
+        return failedRet
+    amiDsDict = amiOutDict['goodDatasetList']
+    # parse
+    datasetMapFromAMI = {}
+    dq2 = DQ2()
+    for tmpKey,tmpVal in amiDsDict.iteritems():
+        if tmpVal.has_key('logicalDatasetName'):
+            dsName = str(tmpVal['logicalDatasetName'])
+            runNumber = long(tmpVal['runNumber'])
+            # check dataset names
+            if goodRunListDS == []:    
+                matchFlag = True
+            else:
+                matchFlag = False
+                for tmpPatt in goodRunListDS:
+                    if re.search(tmpPatt,dsName) != None:
+                        matchFlag = True
+            if not matchFlag:
+                continue
+            # check with DQ2 since AMI doesn't store /
+            dsmap = {}
+            try:
+                tmpLog.debug("getting the list of files from DDM for %s" % dsName)
+                dsmap = dq2.listDatasets(dsName,onlyNames=True)
+            except:
+                pass
+            if not dsmap.has_key(dsName):
+                dsName += '/'
+            # check duplication for the run number
+            if matchFlag:
+                newFlag = True
+                if datasetMapFromAMI.has_key(runNumber):
+                    # check configuration tag to use new one
+                    newConfigTag = checkConfigTag(datasetMapFromAMI[runNumber],
+                                                  dsName)
+                    if newConfigTag == True:
+                        del datasetMapFromAMI[runNumber]
+                    elif newConfigTag == False:
+                        # keep existing one
+                        newFlag = False
+                # append        
+                if newFlag:
+                    if not datasetMapFromAMI.has_key(runNumber):
+                        datasetMapFromAMI[runNumber] = []
+                    datasetMapFromAMI[runNumber].append(dsName)
+    # make string
+    amiRunNumList = datasetMapFromAMI.keys()
+    amiRunNumList.sort()
+    datasets = ''
+    filesStr = []
+    for tmpRunNum in amiRunNumList:
+        datasetListFromAMI = datasetMapFromAMI[tmpRunNum]
+        for dsName in datasetListFromAMI:
+            datasets += '%s,' % dsName
+            # get files in the dataset
+            tmpFilesStr = []
+            tmpFileGUIDMap,tmpStamp = dq2.listFilesInDataset(dsName)
+            tmpFileMap = convertGuidToLfnMap(tmpFileGUIDMap)
+            tmpLFNList = tmpFileMap.keys()
+            tmpLFNList.sort()
+            for tmpLFN in tmpLFNList:
+                # extract LBs
+                tmpItems = tmpLFN.split('.')
+                # sort format
+                if len(tmpItems) < 7:
+                    tmpFilesStr.append(tmpLFN)
+                    continue
+                tmpLBmatch = re.search('_lb(\d+)-lb(\d+)',tmpLFN)
+                # _lbXXX-lbYYY not found
+                if tmpLBmatch != None:
+                    LBstart_LFN = long(tmpLBmatch.group(1))
+                    LBend_LFN   = long(tmpLBmatch.group(2))
+                else:
+                    # try ._lbXYZ.
+                    tmpLBmatch = re.search('\._lb(\d+)\.',tmpLFN)
+                    if tmpLBmatch != None:
+                        LBstart_LFN = long(tmpLBmatch.group(1))
+                        LBend_LFN   = LBstart_LFN
+                    else:
+                        tmpFilesStr.append(tmpLFN)                    
+                        continue
+                # check range
+                if not runLumiMap.has_key(tmpRunNum):
+                    tmpLog.error('AMI gives a wrong run number (%s) which is not contained in %s' % \
+                                 (tmpRunNum,goodRunListXML))
+                    return failedRet
+                inRange = False
+                for LBstartXML,LBendXML in runLumiMap[tmpRunNum]:
+                    if (LBstart_LFN >= LBstartXML and LBstart_LFN <= LBendXML) or \
+                       (LBend_LFN >= LBstartXML and LBend_LFN <= LBendXML) or \
+                       (LBstart_LFN >= LBstartXML and LBend_LFN <= LBendXML) or \
+                       (LBstart_LFN <= LBstartXML and LBend_LFN >= LBendXML):
+                        inRange = True
+                        break
+                if inRange:
+                    tmpFilesStr.append(tmpLFN)
+            # check if files are found
+            if tmpFilesStr == '':
+                tmpLog.error('found no files with corresponding LBs in %s' % dsName)
+                return failedRet
+            filesStr += tmpFilesStr    
+    datasets = datasets[:-1]
+    if verbose:
+        tmpLog.debug('converted to DS:%s LFN:%s' % (datasets,str(filesStr)))
+    # return        
+    return True,datasets,filesStr
+
+
+
+# check configuration tag
+def checkConfigTag(oldDSs,newDS):
+    try:
+        extPatt = '([a-zA-Z]+)(\d+)(_)*([a-zA-Z]+)*(\d+)*'
+        # extract new tag 
+        newTag = newDS.split('.')[5]
+        matchN = re.search(extPatt,newTag)
+        # loop over all DSs
+        for oldDS in oldDSs:
+            # extract old tag
+            oldTag = oldDS.split('.')[5]
+            matchO = re.search(extPatt,oldTag)
+            # check tag consistency beforehand
+            if matchO.group(1) != matchN.group(1):
+                return None
+            if matchO.group(4) != matchN.group(4):
+                return None
+        # use the first DS since they have the same tag        
+        oldTag = oldDSs[0].split('.')[5]
+        matchO = re.search(extPatt,oldTag)
+        # check version
+        verO = int(matchO.group(2))
+        verN = int(matchN.group(2))
+        if verO > verN:
+            return False
+        if verO < verN:
+            return True
+        # check next tag
+        if matchO.group(3) == None:
+            # no next tag 
+            return None
+        # check version
+        verO = int(matchO.group(5))
+        verN = int(matchN.group(5))
+        if verO > verN:
+            return False
+        if verO < verN:
+            return True
+        # same tag
+        return None
+    except:
+        return None
+
+
+
+# convert guid map to lfn map
+def convertGuidToLfnMap(oldMap):
+    newMap = {}
+    for tmpGUID,tmpValMap in oldMap.iteritems():
+        tmpLFN = tmpValMap['lfn']
+        newMap[tmpLFN] = {}
+        for tmpKey,tmpVal in tmpValMap.iteritems():
+            newMap[tmpLFN][tmpKey] = tmpVal
+    return newMap
+

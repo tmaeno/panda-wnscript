@@ -15,7 +15,7 @@ from pandawnutil.wnmisc import PsubUtils
 # error code
 EC_MissingArg  = 10
 EC_WGET        = 146
-EC_EVP         = 147
+EC_GRL         = 147
 
 # set TZ
 os.environ['TZ'] = 'UTC'
@@ -27,18 +27,14 @@ optP.add_option('-d', action='store_const', const=True, dest='debug',  default=F
                 help='Debug')
 optP.add_option('--sourceURL',action='store',dest='sourceURL',default='',
                 type='string', help='base URL where run/event list is retrived')
-optP.add_option('--eventPickEvtList',action='store',dest='eventPickEvtList',default='',
-                type='string', help='a file name which contains a list of runs/events for event picking')
-optP.add_option('--eventPickDataType',action='store',dest='eventPickDataType',default='',
-                type='string', help='type of data for event picking. one of AOD,ESD,RAW')
-optP.add_option('--eventPickStreamName',action='store',dest='eventPickStreamName',default='',
-                type='string', help='stream name for event picking. e.g., physics_CosmicCaloEM')
-optP.add_option('--eventPickDS',action='store',dest='eventPickDS',default='',
-                type='string', help='A comma-separated list of pattern strings. Datasets which are converted from the run/event list will be used when they match with one of the pattern strings. Either \ or "" is required when a wild-card is used. e.g., data\*')
-optP.add_option('--eventPickStagedDS',action='store',dest='eventPickStagedDS',default='',
-                type='string', help='--eventPick options create a temporary dataset to stage-in interesting files when those files are available only on TAPE, and then a stage-in request is automatically sent to DaTRI. Once DaTRI transfers the dataset to DISK you can use the dataset as an input using this option')
-optP.add_option('--eventPickAmiTag',action='store',dest='eventPickAmiTag',default='',
-                type='string', help='AMI tag used to match TAG collections names. This option is required when you are interested in older data than the latest one. Either \ or "" is required when a wild-card is used. e.g., f2\*')
+optP.add_option('--goodRunListXML', action='store', dest='goodRunListXML', default='',
+                type='string', help='Good Run List XML which will be converted to datasets by AMI')
+optP.add_option('--goodRunListDataType', action='store', dest='goodRunDataType', default='',
+                type='string', help='specify data type when converting Good Run List XML to datasets, e.g, AOD (default)')
+optP.add_option('--goodRunListProdStep', action='store', dest='goodRunProdStep', default='',
+                type='string', help='specify production step when converting Good Run List to datasets, e.g, merge (default)')
+optP.add_option('--goodRunListDS', action='store', dest='goodRunListDS', default='',
+                type='string', help='A comma-separated list of pattern strings. Datasets which are converted from Good Run List XML will be used when they match with one of the pattern strings. Either \ or "" is required when a wild-card is used. If this option is omitted all datasets will be used')
 
 # dummy parameters
 optP.add_option('--oldPrefix',action='store',dest='oldPrefix')
@@ -78,8 +74,8 @@ for line in output.split('\n'):
         break
 com = '%s %s/cache/%s.gz' % (wgetCommand,
                              options.sourceURL,
-                             options.eventPickEvtList)
-tmpLog.info("getting run/event list with %s" % com)
+                             options.goodRunListXML)
+tmpLog.info("getting GRL with %s" % com)
 
 nTry = 3
 for iTry in range(nTry):
@@ -89,29 +85,34 @@ for iTry in range(nTry):
     if status == 0:
         break
     if iTry+1 == nTry:
-        tmpLog.error("could not get run/event list from panda server")
+        tmpLog.error("could not get GRL from panda server")
         sys.exit(EC_WGET)
     time.sleep(30)    
-print commands.getoutput('gunzip %s.gz' % options.eventPickEvtList)
+print commands.getoutput('gunzip %s.gz' % options.goodRunListXML)
 
 # convert run/evt list to dataset/LFN list
 try:
-    epDs,epLFNs = PsubUtils.getDSsFilesByRunsEvents(workDir,
-                                                    options.eventPickEvtList,
-                                                    options.eventPickDataType,
-                                                    options.eventPickStreamName,
-                                                    tmpLog,
-                                                    options.eventPickDS,
-                                                    True,
-                                                    options.eventPickAmiTag)
+    status,epDs,epLFNs = PsubUtils.convertGoodRunListXMLtoDS(tmpLog,
+                                                             options.goodRunListXML,
+                                                             options.goodRunDataType,
+                                                             options.goodRunProdStep,
+                                                             options.goodRunListDS,
+                                                             True)
+    if not status:
+        tmpLog.error("failed to convert GoodRunListXML")
+        sys.exit(EC_GRL)
+    if epDs == '':
+        tmpLog.error("no datasets were extracted from AMI using %s" % options.goodRunListXML)
+        sys.exit(EC_GRL)
+    status = 0
 except:
     errtype,errvalue = sys.exc_info()[:2]
-    tmpLog.error("failed to execute event picking with %s %s" % (errtype,errvalue))
-    sys.exit(EC_EVP)
+    tmpLog.error("failed to convert GRL with %s %s" % (errtype,errvalue))
+    sys.exit(EC_GRL)
 
 print
 
-tmpLog.debug("=== evp output ===")
+tmpLog.debug("=== GRL output ===")
 print epDs
 print epLFNs
 print

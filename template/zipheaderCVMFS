@@ -5,12 +5,24 @@ if [ $? -ne 0 ]; then
 echo "ERROR:  unzip is missing"
 exit 111
 fi
-
-export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
-source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh "" 
-localSetupDQ2Client --skipConfirm
-
 unzip -o $0 > /dev/null 2>&1
+
+if [ -e panda-wn_ext_apps ]; then
+    echo "setup CVMFS for external applications"
+    export PANDA_WN_EXT_APPS=`cat panda-wn_ext_apps`
+    export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
+    source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh "" 
+fi
+
+if [ `echo $PANDA_WN_EXT_APPS | grep dq2` ]; then
+    echo "setup DQ2"
+    localSetupDQ2Client --skipConfirm
+fi
+if [ `echo $PANDA_WN_EXT_APPS | grep ami` ]; then
+    echo "setup AMI"
+    localSetupPyAMI
+fi
+
 PYNAME=`echo $0 | sed -e "s/\(-.*$\)/.py/"`
 exec python -u $PYNAME "$@"
 

@@ -32,16 +32,16 @@ for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
 done
 
 # with CVMFS
-for TARGET in "preEvtPick"
+for TARGET in "preEvtPick" "preGoodRunList"
   do
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
   EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
   rm -f $TMPZIP
   # include utils
-  zip -o $TMPZIP -r pandawnutil "*.py" "*.c"
+  zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
   # script main
   cd $EXESRCDIR
-  zip -o $TMPZIP -r . "*.py"
+  zip -o $TMPZIP -r . -i "*.py" "panda-wn_ext_apps"
   cd $WORKDIR
   # make self-exracting executable
   cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME

@@ -1,5 +1,8 @@
 ** Release Note
 
+11/21/2013
+  * added preGoodRunList
+
 11/19/2013
   * added preEvtPick
 
