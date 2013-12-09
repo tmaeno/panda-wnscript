@@ -17,6 +17,7 @@ rm -rf $BUILDDIR/*
 # loop over all target
 for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
   do
+  echo "Start " $TARGET  
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
   EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
   rm -f $TMPZIP
@@ -29,11 +30,13 @@ for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
   # make self-exracting executable
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
   chmod +x $EXENAME
+  echo
 done
 
 # with CVMFS
 for TARGET in "preEvtPick" "preGoodRunList"
   do
+  echo "Start " $TARGET  
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
   EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
   rm -f $TMPZIP
@@ -46,4 +49,24 @@ for TARGET in "preEvtPick" "preGoodRunList"
   # make self-exracting executable
   cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME
   chmod +x $EXENAME
+  echo
+done
+
+# include non-python files
+for TARGET in "runMerge"
+  do
+  echo "Start " $TARGET  
+  EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
+  EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
+  rm -f $TMPZIP
+  # include utils
+  zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
+  # script main
+  cd $EXESRCDIR
+  zip -o $TMPZIP -r . -i *
+  cd $WORKDIR
+  # make self-exracting executable
+  cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
+  chmod +x $EXENAME
+  echo
 done

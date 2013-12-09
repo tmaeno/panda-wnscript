@@ -1,5 +1,8 @@
 ** Release Note
 
+12/9/2013
+  * added runMerge
+
 12/8/2013
   * fixed for rucio file path
 
