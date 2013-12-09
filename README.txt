@@ -1,5 +1,8 @@
 ** Release Note
 
+12/8/2013
+  * fixed for rucio file path
+
 11/21/2013
   * added preGoodRunList
 

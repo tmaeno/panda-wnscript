@@ -411,6 +411,7 @@ try:
         pfn = str(pfnNode.getAttribute('name'))
         lfn = pfn.split('/')[-1]
 	lfn = re.sub('__DQ2-\d+$','',lfn)
+	lfn = re.sub('^([^:]+:)','', lfn)
         # append
         directTmpTurl[id] = pfn
 except:
@@ -485,6 +486,7 @@ sys.exit(st)
     for id in directTmp.keys():
         lfn = directTmp[id].split('/')[-1]
 	lfn = re.sub('__DQ2-\d+$','',lfn)
+	lfn = re.sub('^([^:]+:)','', lfn)
         directPFNs[lfn] = directTmp[id]
 
 # save current dir
