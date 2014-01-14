@@ -455,6 +455,8 @@ def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
     EC = 0
 
+    print 'merging with tgz ...'
+
     o_tgz = None
 
     f_log = open("merge_job.log","w")
@@ -642,16 +644,16 @@ def __getMergeType__(inputList,mergeScript):
     '''
     baseFile = inputList[0]
     # log
-    if re.search('log\.tgz(\.\d+)$',baseFile) != None:
+    if re.search('log\.tgz(\.\d+)*$',baseFile) != None:
         return 'log'
     # user defined
     if mergeScript != '':
         return 'user'
     # pool
-    if re.search('pool\.root(\.\d+)$',baseFile) != None:
+    if re.search('pool\.root(\.\d+)*$',baseFile) != None:
         return 'pool'
     # root
-    if re.search('.root(\.\d+)$',baseFile) != None:
+    if re.search('.root(\.\d+)*$',baseFile) != None:
         return 'ntuple'
     # others
     return 'text'
@@ -914,14 +916,20 @@ if __name__ == "__main__":
     outputFiles = []
     print
     print "===== into main loop ===="
+    print
     for tmpArg in args:
-        tmpInputs,outputFile = tmpArg.split(':')
+        try:
+            tmpInputs,outputFile = tmpArg.split(':')
+        except:
+            continue
         inputFiles = tmpInputs.split(',')
         inputType = __getMergeType__(inputFiles,mexec)
+        print
+        print ">>> start new chunk <<<"
+        print "=== params ==="
         print 'inputFiles',inputFiles
         print 'outputFile',outputFile
         print 'inputType',inputType
-        print
         ## checking input file list and creating new input file list according to the IO type
         if inputFiles != []:
             print "=== check input files ==="
@@ -950,15 +958,16 @@ if __name__ == "__main__":
             if len(inputFiles) == 0:
                 print 'ERROR : No input file is available'
                 sys.exit(EC_NoInput)
-            print "=== New inputFiles ==="
+            print "=== new inputFiles ==="
             print inputFiles
-
+        print "=== run merging ==="
         ## run merging
         EC = __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup=cmdEnvSetup, userCmd=mexec, useFileStager=useFileStager)
         if EC != EC_OK:
             print "run_merge failed with %s" % EC
             break
         print "run_merge exited with %s" % EC
+        print
         outputFiles.append(outputFile)
 
     print
@@ -1002,6 +1011,9 @@ if __name__ == "__main__":
 
     # go back to current dir
     os.chdir(currentDir)
+    
+    # remove work dir
+    commands.getoutput('rm -rf %s' % workDir)
 
     if EC == EC_OK:
         print 'merge script: success'

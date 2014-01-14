@@ -1,5 +1,8 @@
 ** Release Note
 
+1/13/2014
+  * fixed runMerge
+
 12/9/2013
   * added runMerge
 
