@@ -67,7 +67,7 @@ def __exec__(cmd, mergelog=False):
     print 'exec: %s' % cmd
     s,o = commands.getstatusoutput(cmd)
     print 'status: %s' % (s % 255)
-    print 'stdout: %s' % o
+    print 'stdout:\n%s' % o
     return s,o
 
 def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
