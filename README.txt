@@ -1,5 +1,8 @@
 ** Release Note
 
+4/6/2014
+  * fixed stdout from merge commands in runMerge
+
 1/13/2014
   * fixed runMerge
 

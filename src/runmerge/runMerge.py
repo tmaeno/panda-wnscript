@@ -63,14 +63,12 @@ def __exec__(cmd, mergelog=False):
     '''
     wrapper of making system call
     '''
-
-    if mergelog:
-        cmd = '(' + cmd + ') &> merge_job.log'
-
     print 'dir : %s' % os.getcwd()
     print 'exec: %s' % cmd
-
-    return commands.getstatusoutput(cmd)
+    s,o = commands.getstatusoutput(cmd)
+    print 'status: %s' % (s % 255)
+    print 'stdout: %s' % o
+    return s,o
 
 def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
     '''
@@ -370,28 +368,17 @@ def __fetch_toolbox__(url, maxRetry=3):
     '''
     getting the runMerge toolbox containing executables, librarys to run merging programs
     '''
-
+    print '=== getting sandbox ==='
     ick = False
 
-    cmd = 'wget -t %d --waitretry=60 %s' % (maxRetry, url)
+    cmd = 'wget --no-check-certificate -t %d --waitretry=60 %s' % (maxRetry, url)
     rc, output = __exec__(cmd)
 
     if rc == 0:
-
-        urlinfo  = urisplit(url)
-        basename = os.path.basename( urlinfo[2] )
-
-        if os.path.exists( basename ):
-            cmd = 'tar xvzf %s' % basename
-            rc, output = __exec__(cmd)
-
-            if rc == 0:
-                ick = True
-            else:
-                print 'ERROR: unpack %s error: %s' % (basename, output)
+        ick = True
     else:
         print 'ERROR: wget %s error: %s' % (url, output)
-
+    print
     return ick
 
 def __cat_file__(fpath):
@@ -884,17 +871,25 @@ if __name__ == "__main__":
     currentDir = os.getcwd()
     currentDirFiles = os.listdir('.')
 
+    # get archiveJobO
+    if archiveJobO != '':
+        tmpStat = __fetch_toolbox__('%s/cache/%s' % (sourceURL,archiveJobO))
+        if not tmpStat:
+            print 'ERROR : failed to download %s' % archiveJobO
+            sys.exit(EC_MERGE_ERROR)
+    
     ## create and change to workdir
     print "Running in",currentDir
     workDir = os.path.join(currentDir, 'workDir')
     shutil.rmtree(workDir, ignore_errors=True)
     os.makedirs(workDir)
     os.chdir(workDir)
-    
+
     ## expand library tarballs
     libs = []
     libs.append( libTgz )
     libs.append( libraries )
+    libs.append( archiveJobO )
 
     for lib in libs:
         if lib == '':
@@ -908,7 +903,7 @@ if __name__ == "__main__":
     cmdEnvSetup = __cmd_setup_env__(workDir, rootVer)
 
     ## create and change to rundir
-    commands.getoutput('mkdir %s' % runDir)
+    commands.getoutput('mkdir -p %s' % runDir)
     os.chdir(runDir)
 
     # loop over all args
@@ -918,6 +913,14 @@ if __name__ == "__main__":
     print "===== into main loop ===="
     print
     for tmpArg in args:
+        # option appended after args
+        try:
+            if tmpArg.startswith('-'):
+                print
+                print "escape since non arg found %s" % tmpArg
+                break
+        except:
+            pass
         try:
             tmpInputs,outputFile = tmpArg.split(':')
         except:
