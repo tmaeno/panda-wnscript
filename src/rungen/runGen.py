@@ -413,6 +413,7 @@ try:
 	lfn = re.sub('__DQ2-\d+$','',lfn)
 	lfn = re.sub('^([^:]+:)','', lfn)
 	lfn = re.sub('\?site.*$','', lfn)
+	lfn = re.sub('\?select.*$','', lfn)
         # append
         directTmpTurl[id] = pfn
 except:
@@ -489,6 +490,7 @@ sys.exit(st)
 	lfn = re.sub('__DQ2-\d+$','',lfn)
 	lfn = re.sub('^([^:]+:)','', lfn)
 	lfn = re.sub('\?site.*$','', lfn)
+	lfn = re.sub('\?select.*$','', lfn)
         directPFNs[lfn] = directTmp[id]
 
 # save current dir
