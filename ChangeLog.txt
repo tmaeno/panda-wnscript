@@ -1,5 +1,8 @@
 ** Release Note
 
+7/25/2014
+  * adding inMap to inputFiles
+
 7/8/2014
   * patched for http/davix access
 

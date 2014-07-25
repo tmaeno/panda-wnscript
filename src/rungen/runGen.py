@@ -125,27 +125,27 @@ for o, a in opts:
 # dump parameter
 try:
     print "=== parameters ==="
-    print libraries
-    print runDir
-    print jobParams
-    print inputFiles
-    print scriptName
-    print outputFiles
-    print inputGUIDs
-    print oldPrefix
-    print newPrefix
-    print directIn
-    print usePFCTurl
-    print lfcHost
-    print debugFlag
-    print liveLog
-    print sourceURL
-    print inMap
-    print useAthenaPackages
-    print archiveJobO
-    print dbrFile
-    print dbrRun
-    print notExpandDBR
+    print "libraries",libraries
+    print "runDir",runDir
+    print "jobParams",jobParams
+    print "inputFiles",inputFiles
+    print "scriptName",scriptName
+    print "outputFiles",outputFiles
+    print "inputGUIDs",inputGUIDs
+    print "oldPrefix",oldPrefix
+    print "newPrefix",newPrefix
+    print "directIn",directIn
+    print "usePFCTurl",usePFCTurl
+    print "lfcHost",lfcHost
+    print "debugFlag",debugFlag
+    print "liveLog",liveLog
+    print "sourceURL",sourceURL
+    print "inMap",inMap
+    print "useAthenaPackages",useAthenaPackages
+    print "archiveJobO",archiveJobO
+    print "dbrFile",dbrFile
+    print "dbrRun",dbrRun
+    print "notExpandDBR",notExpandDBR
     print "skipInputByRetry",skipInputByRetry
     print "writeInputToTxt",writeInputToTxt
     print "rootVer",rootVer
@@ -158,6 +158,16 @@ except:
     type, value, traceBack = sys.exc_info()
     print 'ERROR: missing parameters : %s - %s' % (type,value)
     sys.exit(EC_MissingArg)
+
+# add secondary files if missing
+for tmpToken,tmpList in inMap.iteritems():
+    for inputFile in tmpList:
+        if not inputFile in inputFiles:
+            inputFiles.append(inputFile)
+print
+print "===== inputFiles with inMap ====="
+print "inputFiles",inputFiles
+print
 
 # remove skipped files
 if skipInputByRetry != []: 
@@ -611,10 +621,10 @@ for rootRcDir in rootRcDirs:
         pass
 
 # check input files
+inputFileMap = {}
 if inputFiles != [] and not givenPFN:
     print "=== check input files ==="
     newInputs = []
-    inputFileMap = {}
     for inputFile in inputFiles:
         # direct reading
         foundFlag = False
