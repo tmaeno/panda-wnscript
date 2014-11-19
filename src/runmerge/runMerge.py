@@ -333,6 +333,7 @@ def __cmd_setup_env__(workDir, rootVer):
         # create requirements
         oFile = open(tmpDir+'/requirements','w')
         oFile.write('use AtlasPolicy AtlasPolicy-*\n')
+        oFile.write('use PathResolver PathResolver-* Tools\n')
         oFile.close()
         # setup command
         setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
@@ -782,34 +783,33 @@ if __name__ == "__main__":
     # dump parameter
     try:
         print "=== parameters ==="
-        print libraries
-        print runDir
-        print jobParams
-        print inputFiles
-        print inputList
-        print inputType
-        print mexec
-#        print outputFiles
-        print outputFile
-        print inputGUIDs
-        print oldPrefix
-        print newPrefix
-        print directIn
-        print usePFCTurl
-        print lfcHost
-        print debugFlag
-        print liveLog
-        print sourceURL
-        print inMap
-        print useAthenaPackages
-        print archiveJobO
-        print dbrFile
-        print dbrRun
-        print notExpandDBR
-        print libTgz
-        print parentDS
-        print parentContainer
-        print outputDS
+        print "libraries",libraries
+        print "runDir",runDir
+        print "jobParams",jobParams
+        print "inputFiles",inputFiles
+        print "inputList",inputList
+        print "inputType",inputType
+        print "mexec",mexec
+        print "outputFile",outputFile
+        print "inputGUIDs",inputGUIDs
+        print "oldPrefix",oldPrefix
+        print "newPrefix",newPrefix
+        print "directIn",directIn
+        print "usePFCTurl",usePFCTurl
+        print "lfcHost",lfcHost
+        print "debugFlag",debugFlag
+        print "liveLog",liveLog
+        print "sourceURL",sourceURL
+        print "inMap",inMap
+        print "useAthenaPackages",useAthenaPackages
+        print "archiveJobO",archiveJobO
+        print "dbrFile",dbrFile
+        print "dbrRun",dbrRun
+        print "notExpandDBR",notExpandDBR
+        print "libTgz",libTgz
+        print "parentDS",parentDS
+        print "parentContainer",parentContainer
+        print "outputDS",outputDS
         print "skipInputByRetry",skipInputByRetry
         print "writeInputToTxt",writeInputToTxt
         print "rootVer",rootVer

@@ -1,5 +1,8 @@
 ** Release Note
 
+11/19/2014
+  * added PathResolver
+
 7/25/2014
   * adding inMap to inputFiles
 
