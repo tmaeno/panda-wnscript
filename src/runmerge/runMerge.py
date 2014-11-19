@@ -337,7 +337,7 @@ def __cmd_setup_env__(workDir, rootVer):
         oFile.close()
         # setup command
         setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
-        setupEnv += 'cd %s; cmt config; source ./setup.sh; cd -; ' % tmpDir
+        setupEnv += 'cd %s; cat requirements; cmt config; source ./setup.sh; cd -; ' % tmpDir
 
 
     # setup root
@@ -361,6 +361,10 @@ def __cmd_setup_env__(workDir, rootVer):
     # TestArea
     setupEnv += "export TestArea=%s; " % workDir
 
+    print "=== setup command ==="
+    print setupEnv
+    print
+    print "=== env ==="
     print commands.getoutput(setupEnv+'env')
 
     return setupEnv
