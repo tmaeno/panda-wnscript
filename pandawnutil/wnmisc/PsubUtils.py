@@ -311,7 +311,7 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     # make arguments
     amiArgv = []
     amiArgv.append("GetGoodDatasetList")
-    amiArgv.append("goodRunList="+gl_xml.read())
+    amiArgv.append("goodRunList=\"%s\""%gl_xml.read().replace('"', '\\"'))
     gl_xml.close()
     if goodRunDataType != '':
         amiArgv.append('dataType=%s' % goodRunDataType)
@@ -339,14 +339,10 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     amiOutDict = amiOut.get_rows()
     if verbose:
         tmpLog.debug(amiOutDict)
-    if not amiOutDict.has_key('goodDatasetList'):
-        tmpLog.error("output from pyAMI doesn't contain goodDatasetList")
-        return failedRet
-    amiDsDict = amiOutDict['goodDatasetList']
     # parse
     datasetMapFromAMI = {}
     dq2 = DQ2()
-    for tmpKey,tmpVal in amiDsDict.iteritems():
+    for tmpVal in amiOutDict:
         if tmpVal.has_key('logicalDatasetName'):
             dsName = str(tmpVal['logicalDatasetName'])
             runNumber = long(tmpVal['runNumber'])
@@ -367,7 +363,9 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
                 dsmap = dq2.listDatasets(dsName,onlyNames=True)
             except:
                 pass
-            if not dsmap.has_key(dsName):
+            # strip scope from keys
+            dsmapKeys = [k.split(':')[1] for k in dsmap.keys() if ':' in k]
+            if not dsName in dsmapKeys:
                 dsName += '/'
             # check duplication for the run number
             if matchFlag:
