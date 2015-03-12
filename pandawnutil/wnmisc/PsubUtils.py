@@ -282,7 +282,7 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     failedRet = False,'',[]
     # import pyAMI
     try:
-        from pyAMI.client import AMIClient
+        import pyAMI.client
     except:
         errType,errValue = sys.exc_info()[:2]
         print "%s %s" % (errType,errValue)
@@ -328,15 +328,15 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
         goodRunListDS = goodRunListDS.split(',')
     # execute
     try:
-        amiclient = AMIClient()
-        amiOut = amiclient.execute(amiArgv)
+        amiclient = pyAMI.client.Client('atlas')
+        amiOut = amiclient.execute(amiArgv,format='dict_object')
     except:
         errType,errValue = sys.exc_info()[:2]
         tmpLog.error("%s %s" % (errType,errValue))
         tmpLog.error('pyAMI failed')
         return failedRet
     # get dataset map
-    amiOutDict = amiOut.to_dict()
+    amiOutDict = amiOut.get_rows()
     if verbose:
         tmpLog.debug(amiOutDict)
     if not amiOutDict.has_key('goodDatasetList'):
