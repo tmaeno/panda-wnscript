@@ -1,5 +1,11 @@
 ** Release Note
 
+6/21/2016
+  * added useCMake
+
+10/15/2015
+  * changed to modify jobReport.json
+
 11/19/2014
   * added PathResolver
 

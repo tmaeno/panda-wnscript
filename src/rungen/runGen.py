@@ -50,6 +50,7 @@ rootVer   = ''
 useRootCore = False
 useMana   = False
 manaVer   = ''
+useCMake  = False
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -62,7 +63,8 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "skipInputByRetry=","writeInputToTxt=",
 			    "rootVer=","enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
-			    "useRootCore","givenPFN","useMana","manaVer="
+			    "useRootCore","givenPFN","useMana","manaVer=",
+			    "useCMake"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -121,6 +123,8 @@ for o, a in opts:
         useMana = True
     if o == "--manaVer":
         manaVer = a
+    if o == "--useCMake":
+        useCMake = True
 
 # dump parameter
 try:
@@ -153,6 +157,7 @@ try:
     print "givenPFN",givenPFN
     print "useMana",useMana
     print "manaVer",manaVer
+    print "useCMake",useCMake
     print "==================="
 except:
     type, value, traceBack = sys.exc_info()
@@ -548,16 +553,20 @@ if archiveJobO != "" and (useAthenaPackages or libraries == ''):
 # create cmt dir to setup Athena
 setupEnv = ''
 if useAthenaPackages:
-    tmpDir = '%s/%s/cmt' % (workDir,commands.getoutput('uuidgen 2>/dev/null'))
-    print "Making tmpDir",tmpDir
-    os.makedirs(tmpDir)
-    # create requirements
-    oFile = open(tmpDir+'/requirements','w')
-    oFile.write('use AtlasPolicy AtlasPolicy-*\n')
-    oFile.close()
-    # setup command
-    setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
-    setupEnv += 'cd %s; cmt config; source ./setup.sh; cd -; ' % tmpDir
+    if not useCMake:
+        tmpDir = '%s/%s/cmt' % (workDir,commands.getoutput('uuidgen 2>/dev/null'))
+        print "Making tmpDir",tmpDir
+        os.makedirs(tmpDir)
+        # create requirements
+        oFile = open(tmpDir+'/requirements','w')
+        oFile.write('use AtlasPolicy AtlasPolicy-*\n')
+        oFile.close()
+        # setup command
+        setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
+        setupEnv += 'cd %s; cmt config; source ./setup.sh; cd -; ' % tmpDir
+    else:
+        setupEnv  = 'source usr/WorkDir/{0}/InstallArea/{1}/setup.sh;env;'.format(os.environ['AtlasOffline_VERSION'],
+                                                                                  os.environ['AtlasOffline_PLATFORM'])
 # setup root
 if rootVer != '':
     rootBinDir = workDir + '/pandaRootBin'
@@ -886,6 +895,23 @@ for oldName,newName in outputFiles.iteritems():
             pFile.close()
         except:
             pass
+    # modify jobReport.json
+    jsonName = 'jobReport.json'
+    try:
+        if os.path.exists(jsonName):
+            pLines = ''
+            pFile = open(jsonName)
+            for line in pFile:
+                # replace file name
+                line = re.sub('"%s"' % oldName, '"%s"' % newName, line)
+                pLines += line
+            pFile.close()
+            # overwrite
+            pFile = open(jsonName,'w')
+            pFile.write(pLines)
+            pFile.close()
+    except:
+        pass
 
 
 # copy results

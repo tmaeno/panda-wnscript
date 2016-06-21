@@ -29,6 +29,7 @@ cmtConfig = ''
 noCompile = False
 useMana   = False
 manaVer   = ''
+useCMake  = False
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:u:r:",
@@ -37,7 +38,8 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:u:r:",
 			    "bexec=","useAthenaPackages",
                             "useFileStager","accessmode=",
 			    "rootVer=","useRootCore","cmtConfig=",
-                            "noCompile","useMana","manaVer="])
+                            "noCompile","useMana","manaVer=",
+                            "useCMake"])
 for o, a in opts:
     if o == "-i":
         sources = a
@@ -65,6 +67,9 @@ for o, a in opts:
         useMana = True
     if o == "--manaVer":
         manaVer = a
+    if o == "--useCMake":
+        useCMake = True
+
 
 # dump parameter
 try:
@@ -81,6 +86,7 @@ try:
     print "noCompile",noCompile
     print "useMana",useMana
     print "manaVer",manaVer
+    print "useCMake",useCMake
 except:
     sys.exit(EC_MissingArg)
 
@@ -136,7 +142,9 @@ if useAthenaPackages and not noCompile:
     # execute
     commands.getoutput('chmod +x %s' % trfName)
     tmpLibName = 'tmplib.%s' % commands.getoutput('uuidgen 2>/dev/null')
-    com = "./%s -i %s -o %s --debug --sourceURL %s" % (trfName,sources,tmpLibName,sourceURL)
+    com = "./%s -i %s -o %s --debug --sourceURL %s " % (trfName,sources,tmpLibName,sourceURL)
+    if useCMake:
+        com += '--useCMake '
     print "--- Compile Athena packages ---"
     print time.ctime()
     if debugFlag:
