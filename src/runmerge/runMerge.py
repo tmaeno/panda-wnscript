@@ -327,18 +327,21 @@ def __cmd_setup_env__(workDir, rootVer):
     setupEnv = ''
 
     if useAthenaPackages:
-        tmpDir = '%s/%s/cmt' % (workDir,commands.getoutput('uuidgen 2>/dev/null'))
-        print "Making tmpDir",tmpDir
-        os.makedirs(tmpDir)
-        # create requirements
-        oFile = open(tmpDir+'/requirements','w')
-        oFile.write('use AtlasPolicy AtlasPolicy-*\n')
-        oFile.write('use PathResolver PathResolver-* Tools\n')
-        oFile.close()
-        # setup command
-        setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
-        setupEnv += 'cd %s; cat requirements; cmt config; source ./setup.sh; cd -; ' % tmpDir
-
+        if not useCMake:
+            tmpDir = '%s/%s/cmt' % (workDir,commands.getoutput('uuidgen 2>/dev/null'))
+            print "Making tmpDir",tmpDir
+            os.makedirs(tmpDir)
+            # create requirements
+            oFile = open(tmpDir+'/requirements','w')
+            oFile.write('use AtlasPolicy AtlasPolicy-*\n')
+            oFile.write('use PathResolver PathResolver-* Tools\n')
+            oFile.close()
+            # setup command
+            setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
+            setupEnv += 'cd %s; cat requirements; cmt config; source ./setup.sh; cd -; ' % tmpDir
+        else:
+            setupEnv  = 'source usr/WorkDir/{0}/InstallArea/{1}/setup.sh;env;'.format(os.environ['AtlasOffline_VERSION'],
+                                                                                      os.environ['AtlasOffline_PLATFORM'])
 
     # setup root
     if rootVer != '':
@@ -686,6 +689,7 @@ if __name__ == "__main__":
     runDir    = '.'
     mexec     = ''
     useRootCore = False
+    useCMake = False
 
     ## default values introduced in runMerge
     inputType  = 'ntuple'
@@ -712,7 +716,7 @@ if __name__ == "__main__":
                                     "dbrFile=","dbrRun=","notExpandDBR",
                                     "useFileStager", "usePFCTurl", "accessmode=",
                                     "skipInputByRetry=","writeInputToTxt=",
-                                    "rootVer=","enable-jem","jem-config=",
+                                    "rootVer=","enable-jem","jem-config=","useCMake"
                                     ])
     except getopt.GetoptError, err:
         print '%s' % str(err)
@@ -783,6 +787,8 @@ if __name__ == "__main__":
             parentContainer = a
         if o == "--outDS":
             outputDS = a
+        if o == "--useCMake":
+            useCMake = True
 
     # dump parameter
     try:
@@ -818,6 +824,7 @@ if __name__ == "__main__":
         print "writeInputToTxt",writeInputToTxt
         print "rootVer",rootVer
         print "useRootCore",useRootCore
+        print "useCMake",useCMake
         print "==================="
     except:
         type, value, traceBack = sys.exc_info()
