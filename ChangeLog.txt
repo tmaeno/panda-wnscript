@@ -1,5 +1,8 @@
 ** Release Note
 
+4/21/2017
+  * fixed for AnalysisBase where AtlasOffline is unavailable
+
 6/21/2016
   * added useCMake
 
