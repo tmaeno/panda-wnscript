@@ -340,8 +340,13 @@ def __cmd_setup_env__(workDir, rootVer):
             setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
             setupEnv += 'cd %s; cat requirements; cmt config; source ./setup.sh; cd -; ' % tmpDir
         else:
-            setupEnv  = 'source usr/WorkDir/{0}/InstallArea/{1}/setup.sh;env;'.format(os.environ['AtlasOffline_VERSION'],
-                                                                                      os.environ['AtlasOffline_PLATFORM'])
+            if 'AtlasOffline_VERSION' in os.environ:
+                athenaVer = os.environ['AtlasOffline_VERSION']
+                platform = os.environ['AtlasOffline_PLATFORM']
+            else:
+                athenaVer = os.environ[os.environ['AtlasProject']+'_VERSION']
+                platform = os.environ[os.environ['AtlasProject']+'_PLATFORM']
+            setupEnv  = 'source usr/WorkDir/{0}/InstallArea/{1}/setup.sh;env;'.format(athenaVer,platform)
 
     # setup root
     if rootVer != '':
