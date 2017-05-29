@@ -571,7 +571,7 @@ if useAthenaPackages:
         else:
             athenaVer = os.environ[os.environ['AtlasProject']+'_VERSION']
             platform = os.environ[os.environ['AtlasProject']+'_PLATFORM']
-        setupEnv  = 'source usr/WorkDir/{0}/InstallArea/{1}/setup.sh;env;'.format(athenaVer,platform)
+        setupEnv  = 'source usr/*/*/InstallArea/*/setup.sh;env;'
             
 # setup root
 if rootVer != '':
