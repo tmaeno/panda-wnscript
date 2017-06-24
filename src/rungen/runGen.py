@@ -8,6 +8,7 @@ import sys
 import time
 import urllib
 import getopt
+import glob
 import pickle
 import commands
 import threading
@@ -571,7 +572,14 @@ if useAthenaPackages:
         else:
             athenaVer = os.environ[os.environ['AtlasProject']+'_VERSION']
             platform = os.environ[os.environ['AtlasProject']+'_PLATFORM']
-        setupEnv  = 'source usr/*/*/InstallArea/*/setup.sh;env;'
+        cmakeSetupDir = 'usr/*/*/InstallArea/*'
+        print "CMake setup dir : {0}".format(cmakeSetupDir)
+        if len(glob.glob(cmakeSetupDir)) > 0:
+            setupEnv = 'source {0}/setup.sh;'.format(cmakeSetupDir)
+        else:
+            print 'WARNING: CMake setup dir not found'
+            setupEnv = ''
+        setupEnv += 'env;'
             
 # setup root
 if rootVer != '':

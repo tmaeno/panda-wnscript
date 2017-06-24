@@ -3,6 +3,7 @@
 import re
 import sys
 import os
+import glob
 import os.path
 import getopt
 import commands
@@ -346,7 +347,13 @@ def __cmd_setup_env__(workDir, rootVer):
             else:
                 athenaVer = os.environ[os.environ['AtlasProject']+'_VERSION']
                 platform = os.environ[os.environ['AtlasProject']+'_PLATFORM']
-            setupEnv  = 'source usr/*/*/InstallArea/*/setup.sh;env;'
+            cmakeSetupDir = 'usr/*/*/InstallArea/*'
+            print "CMake setup dir : {0}".format(cmakeSetupDir)
+            if len(glob.glob(cmakeSetupDir)) > 0:
+                setupEnv = 'source {0}/setup.sh;'.format(cmakeSetupDir)
+            else:
+                print 'WARNING: CMake setup dir not found'
+                setupEnv = ''
 
     # setup root
     if rootVer != '':
