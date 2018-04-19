@@ -1,6 +1,6 @@
 import re
 import sys
-from dq2.clientapi.DQ2 import DQ2
+from rucio.client import Client as RucioClient
 from pandawnutil.wnlogger import PLogger
 # have to reset logger since DQ2 tweaks logger
 PLogger.resetLogger()
@@ -11,17 +11,15 @@ EC_Config = 100
 
 # list datasets by GUIDs
 def listDatasetsByGUIDs(guids,dsFilter,tmpLog,verbose=False,forColl=False):
-    # DQ2 API
+    # rucio API
     try:
-        dq2 = DQ2()
-        dq2.listDatasetsByGUIDs(guids) 
+        client = RucioClient()
     except:
         errtype,errvalue = sys.exc_info()[:2]
-        errStr = "dq2.listDatasetsByGUIDs failed with %s:%s" % (errtype,
-                                                                errvalue)
+        errStr = "failed to get rucio API with %s:%s" % (errtype,
+                                                         errvalue)
         tmpLog.error(errStr)
         sys.exit(EC_Failed)
-
     # get filter
     dsFilters = []
     if dsFilter != '':
@@ -42,7 +40,7 @@ def listDatasetsByGUIDs(guids,dsFilter,tmpLog,verbose=False,forColl=False):
         if iLookUp % 20 == 0:
             time.sleep(1)
         # get datasets
-        outMap = dq2.listDatasetsByGUIDs([guid])
+        outMap = {guid: [str('%s:%s' % (i['scope'], i['name'])) for i in client.get_dataset_by_guid(guid)]}
         tmpLog.debug(outMap)
         # datasets are deleted
         if outMap == {}:
@@ -282,7 +280,9 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     failedRet = False,'',[]
     # import pyAMI
     try:
+        import pyAMI.utils
         import pyAMI.client
+        import pyAMI.atlas.api as AtlasAPI
     except:
         errType,errValue = sys.exc_info()[:2]
         print "%s %s" % (errType,errValue)
@@ -303,22 +303,20 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
             tmpRunNum  = long(tmpRunNode.firstChild.data)
             for tmpLBRange in tmpLumiBlock.getElementsByTagName('LBRange'):
                 tmpLBStart = long(tmpLBRange.getAttribute('Start'))
-                tmpLBEnd   = long(tmpLBRange.getAttribute('End'))        
+                tmpLBEnd   = long(tmpLBRange.getAttribute('End'))
                 # append
                 if not runLumiMap.has_key(tmpRunNum):
                     runLumiMap[tmpRunNum] = []
                 runLumiMap[tmpRunNum].append((tmpLBStart,tmpLBEnd))
-    # make arguments
-    amiArgv = []
-    amiArgv.append("GetGoodDatasetList")
-    amiArgv.append("goodRunList=\"%s\""%gl_xml.read().replace('"', '\\"'))
-    gl_xml.close()
+        kwargs = dict()
+    kwargs['run_number'] = [unicode(x) for x in runLumiMap.keys()]
+    kwargs['ami_status'] = 'VALID'
     if goodRunDataType != '':
-        amiArgv.append('dataType=%s' % goodRunDataType)
+        kwargs['type'] = goodRunDataType
     if goodRunProdStep != '':    
-        amiArgv.append('prodStep=%s' % goodRunProdStep)
+        kwargs['stream'] = goodRunProdStep
     if verbose:
-        tmpLog.debug(amiArgv)
+        tmpLog.debug(kwargs)
     # convert for wildcard
     goodRunListDS = goodRunListDS.replace('*','.*')
     # list of datasets
@@ -329,23 +327,22 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     # execute
     try:
         amiclient = pyAMI.client.Client('atlas')
-        amiOut = amiclient.execute(amiArgv,format='dict_object')
+        amiOutDict = pyAMI.utils.smart_execute(amiclient, 'datasets', [], None, None, None, False, **kwargs).get_rows()
     except:
         errType,errValue = sys.exc_info()[:2]
         tmpLog.error("%s %s" % (errType,errValue))
         tmpLog.error('pyAMI failed')
         return failedRet
     # get dataset map
-    amiOutDict = amiOut.get_rows()
     if verbose:
         tmpLog.debug(amiOutDict)
     # parse
-    datasetMapFromAMI = {}
-    dq2 = DQ2()
+    rucioclient = RucioClient()
+    datasetListFromAMI = []
+    runDsMap = dict()
     for tmpVal in amiOutDict:
-        if tmpVal.has_key('logicalDatasetName'):
-            dsName = str(tmpVal['logicalDatasetName'])
-            runNumber = long(tmpVal['runNumber'])
+        if tmpVal.has_key('ldn'):
+            dsName = str(tmpVal['ldn'])
             # check dataset names
             if goodRunListDS == []:    
                 matchFlag = True
@@ -356,75 +353,57 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
                         matchFlag = True
             if not matchFlag:
                 continue
-            # check with DQ2 since AMI doesn't store /
-            dsmap = {}
+            # get metadata
             try:
-                tmpLog.debug("getting the list of files from DDM for %s" % dsName)
-                dsmap = dq2.listDatasets(dsName,onlyNames=True)
+                tmpLog.debug("getting metadata for %s" % dsName)
+                scope,dsn = extract_scope(dsName)
+                meta =  rucioclient.get_metadata(scope, dsn)
+                if meta['did_type'] == 'COLLECTION':
+                    dsName += '/'
+                datasetListFromAMI.append(dsName)
+                tmpRunNum = meta['run_number']
+                tmpLog.debug("run number : %s" % tmpRunNum)
+                if tmpRunNum not in runDsMap:
+                    runDsMap[tmpRunNum] = set()
+                runDsMap[tmpRunNum].add(dsName)
             except:
-                pass
-            # strip scope from keys
-            dsmapKeys = [k.split(':')[1] for k in dsmap.keys() if ':' in k]
-            if not dsName in dsmapKeys:
-                dsName += '/'
-            # check duplication for the run number
-            if matchFlag:
-                newFlag = True
-                if datasetMapFromAMI.has_key(runNumber):
-                    # check configuration tag to use new one
-                    newConfigTag = checkConfigTag(datasetMapFromAMI[runNumber],
-                                                  dsName)
-                    if newConfigTag == True:
-                        del datasetMapFromAMI[runNumber]
-                    elif newConfigTag == False:
-                        # keep existing one
-                        newFlag = False
-                # append        
-                if newFlag:
-                    if not datasetMapFromAMI.has_key(runNumber):
-                        datasetMapFromAMI[runNumber] = []
-                    datasetMapFromAMI[runNumber].append(dsName)
+                tmpLog.debug("failed to get metadata")
     # make string
-    amiRunNumList = datasetMapFromAMI.keys()
-    amiRunNumList.sort()
     datasets = ''
     filesStr = []
-    for tmpRunNum in amiRunNumList:
-        datasetListFromAMI = datasetMapFromAMI[tmpRunNum]
-        for dsName in datasetListFromAMI:
-            datasets += '%s,' % dsName
+    for tmpRunNum in runLumiMap.keys():
+        for dsName in runDsMap[tmpRunNum]:
             # get files in the dataset
             tmpFilesStr = []
-            tmpFileGUIDMap,tmpStamp = dq2.listFilesInDataset(dsName)
-            tmpFileMap = convertGuidToLfnMap(tmpFileGUIDMap)
-            tmpLFNList = tmpFileMap.keys()
-            tmpLFNList.sort()
-            for tmpLFN in tmpLFNList:
-                # extract LBs
-                tmpItems = tmpLFN.split('.')
-                # sort format
-                if len(tmpItems) < 7:
-                    tmpFilesStr.append(tmpLFN)
-                    continue
-                tmpLBmatch = re.search('_lb(\d+)-lb(\d+)',tmpLFN)
-                # _lbXXX-lbYYY not found
-                if tmpLBmatch != None:
-                    LBstart_LFN = long(tmpLBmatch.group(1))
-                    LBend_LFN   = long(tmpLBmatch.group(2))
+            tmpLFNList = []
+            scope,dsn = extract_scope(dsName)
+            for x in rucioclient.list_files(scope, dsn, long=True):
+                tmpLFN = str(x['name'])
+                LBstart_LFN = x['lumiblocknr']
+                if LBstart_LFN is not None:
+                    LBend_LFN = LBstart_LFN
                 else:
-                    # try ._lbXYZ.
-                    tmpLBmatch = re.search('\._lb(\d+)\.',tmpLFN)
-                    if tmpLBmatch != None:
-                        LBstart_LFN = long(tmpLBmatch.group(1))
-                        LBend_LFN   = LBstart_LFN
-                    else:
-                        tmpFilesStr.append(tmpLFN)                    
+                    # extract LBs from LFN
+                    tmpItems = tmpLFN.split('.')
+                    # short format
+                    if len(tmpItems) < 7:
+                        tmpFilesStr.append(tmpLFN)
                         continue
+                    tmpLBmatch = re.search('_lb(\d+)-lb(\d+)',tmpLFN)
+                    # _lbXXX-lbYYY found
+                    if tmpLBmatch is not None:
+                        LBstart_LFN = long(tmpLBmatch.group(1))
+                        LBend_LFN   = long(tmpLBmatch.group(2))
+                    else:
+                        # try ._lbXYZ.
+                        tmpLBmatch = re.search('\._lb(\d+)\.',tmpLFN)
+                        if tmpLBmatch is not None:
+                            LBstart_LFN = long(tmpLBmatch.group(1))
+                            LBend_LFN   = LBstart_LFN
+                        else:
+                            tmpFilesStr.append(tmpLFN)
+                            continue
                 # check range
-                if not runLumiMap.has_key(tmpRunNum):
-                    tmpLog.error('AMI gives a wrong run number (%s) which is not contained in %s' % \
-                                 (tmpRunNum,goodRunListXML))
-                    return failedRet
                 inRange = False
                 for LBstartXML,LBendXML in runLumiMap[tmpRunNum]:
                     if (LBstart_LFN >= LBstartXML and LBstart_LFN <= LBendXML) or \
@@ -436,16 +415,26 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
                 if inRange:
                     tmpFilesStr.append(tmpLFN)
             # check if files are found
-            if tmpFilesStr == '':
-                tmpLog.error('found no files with corresponding LBs in %s' % dsName)
-                return failedRet
-            filesStr += tmpFilesStr    
+            if tmpFilesStr == []:
+                tmpLog.warning('found no files with corresponding LBs in %s' % dsName)
+            else:
+                datasets += '%s,' % dsName
+                filesStr += tmpFilesStr    
     datasets = datasets[:-1]
     if verbose:
         tmpLog.debug('converted to DS:%s LFN:%s' % (datasets,str(filesStr)))
     # return        
     return True,datasets,filesStr
 
+
+# extract scope and dataset name
+def extract_scope(dsn):
+    if ':' in dsn:
+        return dsn.split(':')[:2]
+    scope = dsn.split('.')[0]
+    if dsn.startswith('user') or dsn.startswith('group'):
+        scope = ".".join(dsn.split('.')[0:2])
+    return scope,dsn
 
 
 # check configuration tag

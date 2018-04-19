@@ -15,8 +15,8 @@ if [ -e panda-wn_ext_apps ]; then
 fi
 
 if [ `echo $PANDA_WN_EXT_APPS | grep dq2` ]; then
-    echo "setup DQ2"
-    localSetupDQ2Client --skipConfirm
+    echo "setup rucio"
+    localSetupRucioClients --skipConfirm
 fi
 if [ `echo $PANDA_WN_EXT_APPS | grep ami` ]; then
     echo "setup AMI"

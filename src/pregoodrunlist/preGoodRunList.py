@@ -8,6 +8,7 @@ import sys
 import time
 import optparse
 import commands
+import traceback
 
 from pandawnutil.wnlogger import PLogger
 from pandawnutil.wnmisc import PsubUtils
@@ -107,7 +108,7 @@ try:
     status = 0
 except:
     errtype,errvalue = sys.exc_info()[:2]
-    tmpLog.error("failed to convert GRL with %s %s" % (errtype,errvalue))
+    tmpLog.error("failed to convert GRL with %s %s %s" % (errtype,errvalue,traceback.format_exc()))
     sys.exit(EC_GRL)
 
 print
