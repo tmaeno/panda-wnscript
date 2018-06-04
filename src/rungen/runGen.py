@@ -430,6 +430,7 @@ try:
 	lfn = re.sub('^([^:]+:)','', lfn)
 	lfn = re.sub('\?site.*$','', lfn)
 	lfn = re.sub('\?select.*$','', lfn)
+        lfn = re.sub('\?GoogleAccessId.*$','',lfn)
         # append
         directTmpTurl[id] = pfn
 except:
@@ -507,6 +508,7 @@ sys.exit(st)
 	lfn = re.sub('^([^:]+:)','', lfn)
 	lfn = re.sub('\?site.*$','', lfn)
 	lfn = re.sub('\?select.*$','', lfn)
+        lfn = re.sub('\?GoogleAccessId.*$','',lfn)
         directPFNs[lfn] = directTmp[id]
 
 # save current dir
