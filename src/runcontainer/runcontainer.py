@@ -61,7 +61,7 @@ import subprocess
 # --rootVer 6.12.06
 # --writeInputToTxt IN:input.txt
 
-VERSION = "1.0.16"
+VERSION = "1.0.17"
 
 
 def main():
@@ -83,7 +83,7 @@ def singularity_command():
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    singularity_base = 'singularity -s exec -C'
+    singularity_base = 'singularity -s exec '
 
     # If Cvmfs add that to bind_paths
     cvmfs = ''
@@ -108,7 +108,7 @@ def singularity_command():
                        args.ctr_image,
                        command)
 
-    logging.debug("Singularity command: %s", singularity_cmd)
+    logging.info("Singularity command: %s", singularity_cmd)
     return singularity_cmd
 
 
