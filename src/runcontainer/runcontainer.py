@@ -61,7 +61,7 @@ import subprocess
 # --rootVer 6.12.06
 # --writeInputToTxt IN:input.txt
 
-VERSION = "1.0.17"
+VERSION = "1.0.18"
 
 
 def main():
@@ -100,8 +100,8 @@ def singularity_command():
     command = args.ctr_cmd
     for key, files_string in input().iteritems():
         if key in command:
-            command = command.replace('%'+key,files_string)
-            
+            command = command.replace('%'+key, files_string)
+
     pwd = os.environ['PWD']
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
@@ -132,7 +132,7 @@ def run_container(cmd=''):
 
 def input():
 
-    # Dictionary to merge --inDS --inMap options and treat them in one single way.
+    # Dictionary to merge --inDS --inMap options and treat them in the same way
     in_map = {}
 
     if args.input_map:
@@ -140,7 +140,7 @@ def input():
         in_map = args.input_map
     elif args.input_files:
         logging.info("Input files %s" % args.input_files)
-        in_map['IN'] = args.input_files 
+        in_map['IN'] = args.input_files
     else:
         logging.info("No input files requested")
     for key, in_files in in_map.iteritems():
@@ -163,11 +163,13 @@ def input():
                 f.write(in_map[file_key])
                 f.close()
             else:
-                logging.error("Key %s doesn't match any of the input keys %s will not create corresponding file %s",file_key,in_map.keys(), text_file)
-    logging.debug("Input files map: %s",in_map)
+                logging.error("Key %s doesn't match any of the input keys " +
+                              "%s will not create corresponding file %s",
+                              file_key, in_map.keys(), text_file)
+    logging.debug("Input files map: %s", in_map)
     return in_map
 
-    
+
 def rename_ouput():
 
     current_dir = os.environ['PWD']
@@ -183,8 +185,10 @@ def rename_ouput():
                     try:
                         os.chdir(out_folder)
                         if glob.glob(old_name):
-                            tar_cmd = 'tar -zcvf '+current_dir+'/'+new_name+'.tgz '+old_name
-                            logging.debug("rename_output tar command: "+tar_cmd)
+                            tar_cmd = ('tar -zcvf '+current_dir+'/'+new_name +
+                                       '.tgz '+old_name)
+                            logging.debug("rename_output tar command: " +
+                                          tar_cmd)
                             subprocess.check_output(tar_cmd, shell=True)
                             break
                     except OSError as err:
