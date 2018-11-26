@@ -61,7 +61,7 @@ import subprocess
 # --rootVer 6.12.06
 # --writeInputToTxt IN:input.txt
 
-VERSION = "1.0.18"
+VERSION = "1.0.19"
 
 
 def main():
@@ -98,10 +98,11 @@ def singularity_command():
 
     # Replace inut place holders
     command = args.ctr_cmd
-    for key, files_string in input().iteritems():
+    files_map = input()
+    for key in sorted(files_map.keys(), reverse=True, key = lambda x: len(x)):
         if key in command:
-            command = command.replace('%'+key, files_string)
-
+            command = command.replace('%'+key,files_map[key])
+            
     pwd = os.environ['PWD']
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
@@ -153,7 +154,7 @@ def input():
             else:
                 logging.info("Input file %s is missing: ", filename)
 
-        # Write input files string to a text file
+    # Write input files string to a text file
     if args.input_text:
         # Write input files if needed
         for a in args.input_text.split(','):
