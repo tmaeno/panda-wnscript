@@ -96,8 +96,12 @@ def singularity_command():
                       "containers please use && to concatenate them")
         sys.exit(1)
 
-    command = args.ctr_cmd.replace('%IN', input())
-
+    # Replace inut place holders
+    command = args.ctr_cmd
+    for key, files_string in input().iteritems():
+        if key in command:
+            command = command.replace('%'+key,files_string)
+            
     pwd = os.environ['PWD']
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
@@ -128,36 +132,42 @@ def run_container(cmd=''):
 
 def input():
 
-    input_string = ''
+    # Dictionary to merge --inDS --inMap options and treat them in one single way.
+    in_map = {}
 
-    if args.input_files:
+    if args.input_map:
+        logging.info("Input primary and secondary files %s" % args.input_map)
+        in_map = args.input_map
+    elif args.input_files:
         logging.info("Input files %s" % args.input_files)
+        in_map['IN'] = args.input_files 
     else:
         logging.info("No input files requested")
+    for key, in_files in in_map.iteritems():
+        input_string = ''
+        for filename in in_files:
+            if os.path.isfile(filename):
+                filename = os.path.join(args.ctr_datadir, filename)
+                input_string += "%s," % filename
+                in_map[key] = input_string[:-1]
+            else:
+                logging.info("Input file %s is missing: ", filename)
 
-    for filename in args.input_files:
-        if os.path.isfile(filename):
-            filename = os.path.join(args.ctr_datadir, filename)
-            input_string += "%s," % filename
-        else:
-            logging.info("Input file %s is missing", filename)
-
-    input_string = input_string[:-1]
-
-    # Write input files string to a text file
+        # Write input files string to a text file
     if args.input_text:
-        # RunGen requires a 'IN' keyword as part of the argument
-        key, text_file = args.input_text.split(':')
-        if key == 'IN':
-            f = open(text_file, 'w')
-            f.write(input_string)
-            f.close()
-        else:
-            logging.error("Missing IN keyword in the argument IN:filename")
+        # Write input files if needed
+        for a in args.input_text.split(','):
+            file_key, text_file = a.split(':')
+            if file_key in in_map.keys():
+                f = open(text_file, 'w')
+                f.write(in_map[file_key])
+                f.close()
+            else:
+                logging.error("Key %s doesn't match any of the input keys %s will not create corresponding file %s",file_key,in_map.keys(), text_file)
+    logging.debug("Input files map: %s",in_map)
+    return in_map
 
-    return input_string
-
-
+    
 def rename_ouput():
 
     current_dir = os.environ['PWD']
@@ -228,6 +238,13 @@ if __name__ == "__main__":
                             type=ast.literal_eval,
                             default="[]",
                             help='Input files')
+
+    # Container output dataset
+    arg_parser.add_argument('--inMap',
+                            dest='input_map',
+                            type=ast.literal_eval,
+                            default="{}",
+                            help='Input files mapping')
 
     # Some users prefer reading the input string from file
     # might be the best also for containers
