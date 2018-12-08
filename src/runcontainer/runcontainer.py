@@ -117,14 +117,16 @@ def singularity_container():
                        cvmfs,
                        args.ctr_image,
                        cmd)
-
     logging.info("Singularity command: %s", singularity_cmd)
 
+    os.environ['SINGULARITY_CACHEDIR'] = 'singularity_cachedir'
+    execute(singularity_cmd)
+
+
+def execute(cmd=''):
+    
     try:
-        output = subprocess.check_output(singularity_cmd, 
-                                         env={'SINGULARITY_CACHEDIR':
-                                              'singularity_cachedir'},
-                                         shell=True)
+        output = subprocess.check_output(cmd, shell=True)
     except subprocess.CalledProcessError as cpe:
         logging.error("Status : FAIL, Container execution failed with errors "+
                       "check payload.stderr. Error code : %s\n%s",
@@ -137,7 +139,7 @@ def singularity_container():
 def run_container():
 
     logging.info("Start container time: "+time.ctime())
-    
+
     # to review when more than one container
     # or when I'll parse queue data
     singularity_container()
