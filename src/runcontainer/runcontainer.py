@@ -123,7 +123,7 @@ def singularity_container():
     try:
         output = subprocess.check_output(singularity_cmd, 
                                          env={'SINGULARITY_CACHEDIR':
-                                              'singularity'},
+                                              'singularity_cachedir'},
                                          shell=True)
     except subprocess.CalledProcessError as cpe:
         logging.error("Status : FAIL, Container execution failed with errors "+
