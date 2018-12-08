@@ -61,8 +61,7 @@ import subprocess
 # --rootVer 6.12.06
 # --writeInputToTxt IN:input.txt
 
-VERSION = "1.0.19"
-
+VERSION = '1.0.20'
 
 def main():
 
@@ -71,19 +70,18 @@ def main():
     logging.info("runcontainer version: "+VERSION)
     logging.info("Start time: "+time.ctime())
 
-    sc = singularity_command()
-    run_container(sc)
+    run_container()
     rename_ouput()
 
     logging.info("End time: "+time.ctime())
 
 
-def singularity_command():
+def singularity_container():
 
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    singularity_base = 'singularity -s exec '
+    singularity_base = 'singularity -s exec -e'
 
     # If Cvmfs add that to bind_paths
     cvmfs = ''
@@ -91,42 +89,58 @@ def singularity_command():
         cvmfs = '-B /cvmfs:/cvmfs'
 
     logging.debug("Command to run in the container %s", args.ctr_cmd)
-    if ';' in args.ctr_cmd:
-        logging.error("Multiple commands not allowed with " +
-                      "containers please use && to concatenate them")
-        sys.exit(1)
 
-    # Replace inut place holders
+    # Replace input place holders
     command = args.ctr_cmd
     files_map = input()
     for key in sorted(files_map.keys(), reverse=True, key = lambda x: len(x)):
         if key in command:
             command = command.replace('%'+key,files_map[key])
-            
+    
+    # Write the command into a script.
+    # Makes it easier to handle whatever character 
+    # is passed to the script
+    file_name = '_runcontainer.sh'
+    open(file_name,'w').write(command)
+    os.chmod(file_name,0o700)
+    logging.info("User command: %s", command)
     pwd = os.environ['PWD']
+    cmd = args.ctr_datadir+'/'+file_name
+
+    # Compose the command
+    # Need to update when I'll parse queuedata
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
-                       args.ctr_workdir,
+                       args.ctr_datadir,
                        pwd,
                        args.ctr_datadir,
                        cvmfs,
                        args.ctr_image,
-                       command)
+                       cmd)
 
     logging.info("Singularity command: %s", singularity_cmd)
-    return singularity_cmd
-
-
-def run_container(cmd=''):
-
-    logging.info("Start container time: "+time.ctime())
 
     try:
-        output = subprocess.check_output(cmd, shell=True)
+        output = subprocess.check_output(singularity_cmd, 
+                                         env={'SINGULARITY_CACHEDIR':
+                                              'singularity'},
+                                         shell=True)
     except subprocess.CalledProcessError as cpe:
-        logging.error("Status : FAIL", cpe.returncode, cpe.output)
+        logging.error("Status : FAIL, Container execution failed with errors "+
+                      "check payload.stderr. Error code : %s\n%s",
+                      cpe.returncode, cpe.output)
+        sys.exit(cpe.returncode)
     else:
         logging.info(output)
+
+
+def run_container():
+
+    logging.info("Start container time: "+time.ctime())
+    
+    # to review when more than one container
+    # or when I'll parse queue data
+    singularity_container()
 
     logging.info("End container time: "+time.ctime())
 
@@ -265,13 +279,12 @@ if __name__ == "__main__":
                             help='Change directory where input, output \
                                   and log files should be stored. \
                                   Default: /data')
-
     # Container workdir
-    arg_parser.add_argument('--containerWorkDir',
-                            dest='ctr_workdir',
-                            default="/data",
-                            help='Change workdir inside the container. \
-                                  Default: /')
+#    arg_parser.add_argument('--containerWorkDir',
+#                            dest='ctr_workdir',
+#                            default="/data",
+#                            help='Change workdir inside the container. \
+#                                  Default: /')
 
     # Container cvmfs
     arg_parser.add_argument('--containerCvmfs',
