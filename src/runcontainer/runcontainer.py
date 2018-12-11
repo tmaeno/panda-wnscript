@@ -12,6 +12,7 @@
 #
 # Authors:
 # - Alessandra Forti, alessandra.forti@cern.ch, 2018
+#######################################################################
 
 import os
 import sys
@@ -22,46 +23,9 @@ import logging
 import urllib
 import ast
 import subprocess
+import shlex
 
-# Example of prun command to process
-# prun --exec 'pwd && ls -l %IN %OUT' --outDS user.aforti.test$a \
-#      --outputs out.dat --site=ANALY_MANC_SL7 --noBuild \
-#      --inDS user.aforti.test5_out.dat.197875784
-
-# Examples of runGen command to process. For containers
-# they'll be simpler, but since we are shadowing runGen
-# we have to catch also what we don't process
-#
-# -j "" --sourceURL https://aipanda078.cern.ch:25443 -r .
-# -p "chmod%20777%20run_grid.sh%3B%20./run_grid.sh%20229%20input.in%20
-#     --proc%20wm%20--mbins%2032%2C40%2C200%20--pdfset%20ATLAS-epWZ16-EIG%20
-#     --pdfvar%200%20--order%202%20--kmufac%201%20--kmuren%201%20
-#     --verbose%20%3B"
-# -l panda.0911074511.596244.lib._15353637.14628477940.lib.tgz
-# -o "{'results.txt': 'user.sawebb.15353637._000229.results.txt',
-#      'results.root': 'user.sawebb.15353637._000229.results.root'}"
-# --rootVer 6.04.18
-#
-# -j "" --sourceURL https://aipanda078.cern.ch:25443 -r ./
-# -p "runjob.sh%20data17_13TeV.00339562.physics_Main.deriv.DAOD_HIGG2D1.
-#     f889_m1902_p3402"
-# -l panda.0914165400.532678.lib._15386194.14657955419.lib.tgz
-# -o "{'hist-output.root': 'user.milu.15386194._000006.hist-output.root',
-#      'myOutput.root': 'user.milu.15386194._000006.myOutput.root'}"
-# -i "['DAOD_HIGG2D1.12820426._000058.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000059.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000060.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000061.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000062.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000063.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000064.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000065.pool.root.1']"
-# --useAthenaPackages
-# --useCMake
-# --rootVer 6.12.06
-# --writeInputToTxt IN:input.txt
-
-VERSION = '1.0.20'
+VERSION = '1.0.21'
 
 def main():
 
@@ -81,7 +45,7 @@ def singularity_container():
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    singularity_base = 'singularity -s exec -e'
+    singularity_base = 'singularity exec'
 
     # If Cvmfs add that to bind_paths
     cvmfs = ''
@@ -101,7 +65,7 @@ def singularity_container():
     # Makes it easier to handle whatever character 
     # is passed to the script
     file_name = '_runcontainer.sh'
-    open(file_name,'w').write(command)
+    open(file_name,'w').write(command+'\n')
     os.chmod(file_name,0o700)
     logging.info("User command: %s", command)
     pwd = os.environ['PWD']
@@ -120,21 +84,24 @@ def singularity_container():
     logging.info("Singularity command: %s", singularity_cmd)
 
     os.environ['SINGULARITY_CACHEDIR'] = 'singularity_cachedir'
-    execute(singularity_cmd)
-
-
-def execute(cmd=''):
     
+    execute(shlex.split(singularity_cmd))
+
+
+def execute(cmd=[]):
+
     try:
-        output = subprocess.check_output(cmd, shell=True)
+
+        ch = subprocess.Popen(cmd, stdout = subprocess.PIPE, bufsize = 1)
+        for line in iter(ch.stdout.readline,b''):
+            logging.info(line.strip())
+        ch.stdout.close()
     except subprocess.CalledProcessError as cpe:
         logging.error("Status : FAIL, Container execution failed with errors "+
                       "check payload.stderr. Error code : %s\n%s",
                       cpe.returncode, cpe.output)
         sys.exit(cpe.returncode)
-    else:
-        logging.info(output)
-
+        
 
 def run_container():
 
