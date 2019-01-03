@@ -131,19 +131,36 @@ void pandatracer_putlog(const char *message, const int loglevel)
   
 int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
 { 
-  struct sockaddr_in *addrv4 = (struct sockaddr_in *)serv_addr;
+  struct sockaddr_in *addrv = (struct sockaddr_in *)serv_addr;
   char subffer[512];
-  char ipaddr[INET_ADDRSTRLEN]; 
-  inet_ntop(AF_INET,&(addrv4->sin_addr),ipaddr,sizeof ipaddr); 
-  uint16_t iport;
-  iport = ntohs(addrv4->sin_port);
-  const char * loopback_addr = "127.0.0.1";
-  if ((addrv4->sin_family == AF_INET) && (iport != 53) && 
-      strncmp(ipaddr,loopback_addr,sizeof ipaddr) != 0) 
+  char ipaddr[INET_ADDRSTRLEN];
+  if (addrv->sin_family == AF_INET)
     {
-      snprintf(subffer,sizeof(subffer)/sizeof(char),"connect: %s:%u",
-	       ipaddr,iport);
-      pandatracer_putlog(subffer,0);
+      inet_ntop(AF_INET,&(addrv->sin_addr),ipaddr,sizeof ipaddr);
+    }
+  char ipaddr6[INET6_ADDRSTRLEN];
+  if (addrv->sin_family == AF_INET6)
+    {
+      inet_ntop(AF_INET6,&(addrv->sin_addr),ipaddr6,sizeof ipaddr6);
+    }
+  uint16_t iport;
+  iport = ntohs(addrv->sin_port);
+  const char * loopback_addr = "127.0.0.1";
+  const char * loopback_addr6 = "0:0:0:0:0:0:0:1";
+  if (iport != 53 && strncmp(ipaddr,loopback_addr,sizeof ipaddr) != 0 && strncmp(ipaddr6,loopback_addr6,sizeof ipaddr6) != 0)
+    {
+      if (addrv->sin_family == AF_INET)
+	{
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"connect: %s:%u",
+		   ipaddr,iport);
+	  pandatracer_putlog(subffer,0);
+	}
+      else if (addrv->sin_family == AF_INET6)
+	{
+	  snprintf(subffer,sizeof(subffer)/sizeof(char),"connect: %s:%u",
+		   ipaddr6,iport);
+	  pandatracer_putlog(subffer,0);
+	}
     }
   typedef int (*FP_orig)(int,const struct sockaddr *,socklen_t); 
   FP_orig org_call = dlsym(((void *) -1l), "connect"); 

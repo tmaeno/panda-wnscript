@@ -62,14 +62,14 @@ class RunTracer:
                 print "  %s failed" % archOpt
                 st = os.system(stepd)
                 if st != 0:
-                    print "ERROR: %s failed to make dummy tracer"
+                    print "WARNING: %s is not supported" % archOpt
                 else:
                     print "  %s uses dummy" % archOpt
             else:
                 print "  %s succeeded" % archOpt
         # log name
         commands.getoutput('touch %s' % self.getLogName())
-        print "Log -> %s" % self.getLogName()
+        print "Log location -> %s" % self.getLogName()
         # return
         return
 
