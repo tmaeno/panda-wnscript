@@ -1,6 +1,7 @@
 import os
 import os.path
 import commands
+import subprocess
 
 if os.path.isabs(__file__):
     modFullName = __file__
@@ -50,18 +51,27 @@ class RunTracer:
                 pass
             isFailed = False
             # make
-            st = os.system(step1)
-            if st != 0:
+            p = subprocess.Popen(step1.split(), stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE)
+            out, err = p.communicate()
+            if p.returncode != 0:
+                print " com : {0} failed with {1}".format(step1, err)
                 isFailed = True
             else:
-                st = os.system(step2)
-                if st != 0:
+                p = subprocess.Popen(step2.split(), stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                if p.returncode != 0:
+                    print " com : {0} failed with {1}".format(step2, err)
                     isFailed = True
             # make dummy if failed
             if isFailed:        
                 print "  %s failed" % archOpt
-                st = os.system(stepd)
-                if st != 0:
+                p = subprocess.Popen(stepd.split(), stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE)
+                out, err = p.communicate()
+                if p.returncode != 0:
+                    print " com : {0} failed with {1}".format(stepd, err)
                     print "WARNING: %s is not supported" % archOpt
                 else:
                     print "  %s uses dummy" % archOpt
