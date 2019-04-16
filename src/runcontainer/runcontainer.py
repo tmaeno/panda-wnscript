@@ -39,6 +39,31 @@ def main():
 
     logging.info("End time: "+time.ctime())
 
+    
+def singularity_sandbox():
+
+    # We need to sandbox because singularity is stupid
+    if 'PILOT_HOME' not in os.environ:
+        os.environ['PILOT_HOME'] = os.environ['PWD']
+    os.environ['SINGULARITY_TMPDIR'] = os.environ['PILOT_HOME']+'/singularity_tmp'
+    target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
+ 
+    if os.path.exists(target_image):
+        sing_cmd="singularity check {}".format(target_image) 
+    else:
+        os.mkdir(os.environ['SINGULARITY_TMPDIR'],0o755)
+        os.environ['SINGULARITY_LOCALCACHEDIR'] = os.environ['SINGULARITY_TMPDIR']
+        os.environ['SINGULARITY_CACHEDIR'] = os.environ['SINGULARITY_TMPDIR']+'/cache'
+#        target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
+        sing_cmd="singularity build --sandbox {} {}".format(target_image,
+                                                            args.ctr_image)
+    
+    logging.info("Singularity command: %s", sing_cmd)
+    try:
+        execute(shlex.split(sing_cmd))
+    except:
+        logging.error('Sandbox failed.')
+
 
 def singularity_container():
 
@@ -73,18 +98,17 @@ def singularity_container():
 
     # Compose the command
     # Need to update when I'll parse queuedata
+    target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
                        args.ctr_datadir,
                        pwd,
                        args.ctr_datadir,
                        cvmfs,
-                       args.ctr_image,
+                       target_image,
                        cmd)
     logging.info("Singularity command: %s", singularity_cmd)
 
-    os.environ['SINGULARITY_CACHEDIR'] = 'singularity_cachedir'
-    
     execute(shlex.split(singularity_cmd))
 
 
@@ -109,6 +133,7 @@ def run_container():
 
     # to review when more than one container
     # or when I'll parse queue data
+    singularity_sandbox()
     singularity_container()
 
     logging.info("End container time: "+time.ctime())
