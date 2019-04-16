@@ -54,15 +54,12 @@ def singularity_sandbox():
         os.mkdir(os.environ['SINGULARITY_TMPDIR'],0o755)
         os.environ['SINGULARITY_LOCALCACHEDIR'] = os.environ['SINGULARITY_TMPDIR']
         os.environ['SINGULARITY_CACHEDIR'] = os.environ['SINGULARITY_TMPDIR']+'/cache'
-#        target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
         sing_cmd="singularity build --sandbox {} {}".format(target_image,
                                                             args.ctr_image)
     
     logging.info("Singularity command: %s", sing_cmd)
-    try:
-        execute(shlex.split(sing_cmd))
-    except:
-        logging.error('Sandbox failed.')
+
+    execute(shlex.split(sing_cmd))
 
 
 def singularity_container():
