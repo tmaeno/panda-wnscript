@@ -16,6 +16,7 @@
 
 import os
 import sys
+import re
 import time
 import glob
 import argparse
@@ -24,6 +25,7 @@ import urllib
 import ast
 import subprocess
 import shlex
+import shutil
 
 VERSION = '1.0.21'
 
@@ -40,29 +42,60 @@ def main():
     logging.info("End time: "+time.ctime())
 
     
-def singularity_sandbox():
-
-    # We need to sandbox because singularity is stupid
+def singularity_sandbox(source_image=''):
+    
+    # We need to sandbox because singularity has changed behaviour in 3.1.1 
+    # and produces a SIFG image when it exec from a docker registry
     if 'PILOT_HOME' not in os.environ:
         os.environ['PILOT_HOME'] = os.environ['PWD']
-    os.environ['SINGULARITY_TMPDIR'] = os.environ['PILOT_HOME']+'/singularity_tmp'
-    target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
+
+    os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
+                                                        re.sub('\W+','_', source_image))
+    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],
+                                                          'cache')
+    target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],'image')
+
  
-    if os.path.exists(target_image):
-        sing_cmd="singularity check {}".format(target_image) 
-    else:
+    if not os.path.exists(target_image):
+        logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
         os.mkdir(os.environ['SINGULARITY_TMPDIR'],0o755)
-        os.environ['SINGULARITY_LOCALCACHEDIR'] = os.environ['SINGULARITY_TMPDIR']
-        os.environ['SINGULARITY_CACHEDIR'] = os.environ['SINGULARITY_TMPDIR']+'/cache'
-        sing_cmd="singularity build --sandbox {} {}".format(target_image,
-                                                            args.ctr_image)
+        sing_cmd="singularity build --sandbox {0} {1}".format(target_image,
+                                                              source_image)
+    else:
+        logging.debug('Local image {} already exists, low level health checking.'.format(target_image))
+        sing_cmd="singularity check {}".format(target_image) 
     
     logging.info("Singularity command: %s", sing_cmd)
-
     execute(shlex.split(sing_cmd))
+
+    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
+        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+
+    return target_image
+
+
+def singularity_user_proxy():
+    # The user proxy should be copied directly in the pilot directory which is bound to the container
+    # However we still are dealing with the pilot proxy which is located elsewhere
+    # in that case copy locally to a fixed name and point the container env var to that.
+    # It seems underlay cannot bind files.
+    user_proxy_file = '{0}/{1}'.format(os.environ['PWD'],user_proxy) 
+    if os.environ['X509_USER_PROXY'] != user_proxy_file:
+        copy2(os.environ['X509_USER_PROXY'],user_proxy_file)
+    os.environ['SINGULARITY_X509_USER_PROXY'] = '{0}/{1}'.format(args.ctr_datadir,user_proxy)
+    
 
 
 def singularity_container():
+
+    # Do we have to sandbox? Only if the image is from a docker registry
+    # not if it is from /cvmfs in that case we want to use the image
+    exec_image = ''
+    if re.search('docker://',args.ctr_image):
+        exec_image = singularity_sandbox(args.ctr_image)
+    else:
+        exec_image = args.ctr_image
 
     # Options for the command line string have default values or are mandatory
 
@@ -95,15 +128,16 @@ def singularity_container():
 
     # Compose the command
     # Need to update when I'll parse queuedata
-    target_image=os.environ['SINGULARITY_TMPDIR']+'/image'
+    logging.debug('Using image: {}'.format(exec_image))
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
                        args.ctr_datadir,
                        pwd,
                        args.ctr_datadir,
                        cvmfs,
-                       target_image,
+                       exec_image,
                        cmd)
+
     logging.info("Singularity command: %s", singularity_cmd)
 
     execute(shlex.split(singularity_cmd))
@@ -130,7 +164,6 @@ def run_container():
 
     # to review when more than one container
     # or when I'll parse queue data
-    singularity_sandbox()
     singularity_container()
 
     logging.info("End container time: "+time.ctime())
