@@ -928,7 +928,12 @@ for oldName,newName in outputFiles.iteritems():
             pFile.close()
     except:
         pass
-
+    # add user job metadata
+    try:
+        from pandawnutil.wnmisc import misc_utils
+        misc_utils.add_user_job_metadata()
+    except Exception:
+        pass
 
 # copy results
 for file in outputFiles.values():
