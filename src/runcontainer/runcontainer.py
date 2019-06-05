@@ -12,9 +12,11 @@
 #
 # Authors:
 # - Alessandra Forti, alessandra.forti@cern.ch, 2018
+#######################################################################
 
 import os
 import sys
+import re
 import time
 import glob
 import argparse
@@ -22,47 +24,10 @@ import logging
 import urllib
 import ast
 import subprocess
+import shlex
+import shutil
 
-# Example of prun command to process
-# prun --exec 'pwd && ls -l %IN %OUT' --outDS user.aforti.test$a \
-#      --outputs out.dat --site=ANALY_MANC_SL7 --noBuild \
-#      --inDS user.aforti.test5_out.dat.197875784
-
-# Examples of runGen command to process. For containers
-# they'll be simpler, but since we are shadowing runGen
-# we have to catch also what we don't process
-#
-# -j "" --sourceURL https://aipanda078.cern.ch:25443 -r .
-# -p "chmod%20777%20run_grid.sh%3B%20./run_grid.sh%20229%20input.in%20
-#     --proc%20wm%20--mbins%2032%2C40%2C200%20--pdfset%20ATLAS-epWZ16-EIG%20
-#     --pdfvar%200%20--order%202%20--kmufac%201%20--kmuren%201%20
-#     --verbose%20%3B"
-# -l panda.0911074511.596244.lib._15353637.14628477940.lib.tgz
-# -o "{'results.txt': 'user.sawebb.15353637._000229.results.txt',
-#      'results.root': 'user.sawebb.15353637._000229.results.root'}"
-# --rootVer 6.04.18
-#
-# -j "" --sourceURL https://aipanda078.cern.ch:25443 -r ./
-# -p "runjob.sh%20data17_13TeV.00339562.physics_Main.deriv.DAOD_HIGG2D1.
-#     f889_m1902_p3402"
-# -l panda.0914165400.532678.lib._15386194.14657955419.lib.tgz
-# -o "{'hist-output.root': 'user.milu.15386194._000006.hist-output.root',
-#      'myOutput.root': 'user.milu.15386194._000006.myOutput.root'}"
-# -i "['DAOD_HIGG2D1.12820426._000058.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000059.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000060.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000061.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000062.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000063.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000064.pool.root.1',
-#      'DAOD_HIGG2D1.12820426._000065.pool.root.1']"
-# --useAthenaPackages
-# --useCMake
-# --rootVer 6.12.06
-# --writeInputToTxt IN:input.txt
-
-VERSION = "1.0.17"
-
+VERSION = '1.0.21'
 
 def main():
 
@@ -71,19 +36,71 @@ def main():
     logging.info("runcontainer version: "+VERSION)
     logging.info("Start time: "+time.ctime())
 
-    sc = singularity_command()
-    run_container(sc)
+    run_container()
     rename_ouput()
 
     logging.info("End time: "+time.ctime())
 
+    
+def singularity_sandbox(source_image=''):
+    
+    # We need to sandbox because singularity has changed behaviour in 3.1.1 
+    # and produces a SIFG image when it exec from a docker registry
+    if 'PILOT_HOME' not in os.environ:
+        os.environ['PILOT_HOME'] = os.environ['PWD']
 
-def singularity_command():
+    os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
+                                                        re.sub('\W+','_', source_image))
+    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],
+                                                          'cache')
+    target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],'image')
+
+ 
+    if not os.path.exists(target_image):
+        logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
+        os.mkdir(os.environ['SINGULARITY_TMPDIR'],0o755)
+        sing_cmd="singularity build --sandbox {0} {1}".format(target_image,
+                                                              source_image)
+    else:
+        logging.debug('Local image {} already exists, low level health checking.'.format(target_image))
+        sing_cmd="singularity check {}".format(target_image) 
+    
+    logging.info("Singularity command: %s", sing_cmd)
+    execute(shlex.split(sing_cmd))
+
+    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
+        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+
+    return target_image
+
+
+def singularity_user_proxy():
+    # The user proxy should be copied directly in the pilot directory which is bound to the container
+    # However we still are dealing with the pilot proxy which is located elsewhere
+    # in that case copy locally to a fixed name and point the container env var to that.
+    # It seems underlay cannot bind files.
+    user_proxy_file = '{0}/{1}'.format(os.environ['PWD'],user_proxy) 
+    if os.environ['X509_USER_PROXY'] != user_proxy_file:
+        copy2(os.environ['X509_USER_PROXY'],user_proxy_file)
+    os.environ['SINGULARITY_X509_USER_PROXY'] = '{0}/{1}'.format(args.ctr_datadir,user_proxy)
+    
+
+
+def singularity_container():
+
+    # Do we have to sandbox? Only if the image is from a docker registry
+    # not if it is from /cvmfs in that case we want to use the image
+    exec_image = ''
+    if re.search('docker://',args.ctr_image):
+        exec_image = singularity_sandbox(args.ctr_image)
+    else:
+        exec_image = args.ctr_image
 
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    singularity_base = 'singularity -s exec '
+    singularity_base = 'singularity exec'
 
     # If Cvmfs add that to bind_paths
     cvmfs = ''
@@ -91,71 +108,105 @@ def singularity_command():
         cvmfs = '-B /cvmfs:/cvmfs'
 
     logging.debug("Command to run in the container %s", args.ctr_cmd)
-    if ';' in args.ctr_cmd:
-        logging.error("Multiple commands not allowed with " +
-                      "containers please use && to concatenate them")
-        sys.exit(1)
 
-    command = args.ctr_cmd.replace('%IN', input())
-
+    # Replace input place holders
+    command = args.ctr_cmd
+    files_map = input()
+    for key in sorted(files_map.keys(), reverse=True, key = lambda x: len(x)):
+        if key in command:
+            command = command.replace('%'+key,files_map[key])
+    
+    # Write the command into a script.
+    # Makes it easier to handle whatever character 
+    # is passed to the script
+    file_name = '_runcontainer.sh'
+    open(file_name,'w').write(command+'\n')
+    os.chmod(file_name,0o700)
+    logging.info("User command: %s", command)
     pwd = os.environ['PWD']
+    cmd = args.ctr_datadir+'/'+file_name
+
+    # Compose the command
+    # Need to update when I'll parse queuedata
+    logging.debug('Using image: {}'.format(exec_image))
     singularity_cmd = "%s --pwd %s -B %s:%s %s %s %s" % \
                       (singularity_base,
-                       args.ctr_workdir,
+                       args.ctr_datadir,
                        pwd,
                        args.ctr_datadir,
                        cvmfs,
-                       args.ctr_image,
-                       command)
+                       exec_image,
+                       cmd)
 
     logging.info("Singularity command: %s", singularity_cmd)
-    return singularity_cmd
+
+    execute(shlex.split(singularity_cmd))
 
 
-def run_container(cmd=''):
+def execute(cmd=[]):
+
+    try:
+
+        ch = subprocess.Popen(cmd, stdout = subprocess.PIPE, bufsize = 1)
+        for line in iter(ch.stdout.readline,b''):
+            logging.info(line.strip())
+        ch.stdout.close()
+    except subprocess.CalledProcessError as cpe:
+        logging.error("Status : FAIL, Container execution failed with errors "+
+                      "check payload.stderr. Error code : %s\n%s",
+                      cpe.returncode, cpe.output)
+        sys.exit(cpe.returncode)
+        
+
+def run_container():
 
     logging.info("Start container time: "+time.ctime())
 
-    try:
-        output = subprocess.check_output(cmd, shell=True)
-    except subprocess.CalledProcessError as cpe:
-        logging.error("Status : FAIL", cpe.returncode, cpe.output)
-    else:
-        logging.info(output)
+    # to review when more than one container
+    # or when I'll parse queue data
+    singularity_container()
 
     logging.info("End container time: "+time.ctime())
 
 
 def input():
 
-    input_string = ''
+    # Dictionary to merge --inDS --inMap options and treat them in the same way
+    in_map = {}
 
-    if args.input_files:
+    if args.input_map:
+        logging.info("Input primary and secondary files %s" % args.input_map)
+        in_map = args.input_map
+    elif args.input_files:
         logging.info("Input files %s" % args.input_files)
+        in_map['IN'] = args.input_files
     else:
         logging.info("No input files requested")
-
-    for filename in args.input_files:
-        if os.path.isfile(filename):
-            filename = os.path.join(args.ctr_datadir, filename)
-            input_string += "%s," % filename
-        else:
-            logging.info("Input file %s is missing", filename)
-
-    input_string = input_string[:-1]
+    for key, in_files in in_map.iteritems():
+        input_string = ''
+        for filename in in_files:
+            if os.path.isfile(filename):
+                filename = os.path.join(args.ctr_datadir, filename)
+                input_string += "%s," % filename
+                in_map[key] = input_string[:-1]
+            else:
+                logging.info("Input file %s is missing: ", filename)
 
     # Write input files string to a text file
     if args.input_text:
-        # RunGen requires a 'IN' keyword as part of the argument
-        key, text_file = args.input_text.split(':')
-        if key == 'IN':
-            f = open(text_file, 'w')
-            f.write(input_string)
-            f.close()
-        else:
-            logging.error("Missing IN keyword in the argument IN:filename")
-
-    return input_string
+        # Write input files if needed
+        for a in args.input_text.split(','):
+            file_key, text_file = a.split(':')
+            if file_key in in_map.keys():
+                f = open(text_file, 'w')
+                f.write(in_map[file_key])
+                f.close()
+            else:
+                logging.error("Key %s doesn't match any of the input keys " +
+                              "%s will not create corresponding file %s",
+                              file_key, in_map.keys(), text_file)
+    logging.debug("Input files map: %s", in_map)
+    return in_map
 
 
 def rename_ouput():
@@ -173,8 +224,10 @@ def rename_ouput():
                     try:
                         os.chdir(out_folder)
                         if glob.glob(old_name):
-                            tar_cmd = 'tar -zcvf '+current_dir+'/'+new_name+'.tgz '+old_name
-                            logging.debug("rename_output tar command: "+tar_cmd)
+                            tar_cmd = ('tar -zcvf '+current_dir+'/'+new_name +
+                                       '.tgz '+old_name)
+                            logging.debug("rename_output tar command: " +
+                                          tar_cmd)
                             subprocess.check_output(tar_cmd, shell=True)
                             break
                     except OSError as err:
@@ -229,6 +282,13 @@ if __name__ == "__main__":
                             default="[]",
                             help='Input files')
 
+    # Container output dataset
+    arg_parser.add_argument('--inMap',
+                            dest='input_map',
+                            type=ast.literal_eval,
+                            default="{}",
+                            help='Input files mapping')
+
     # Some users prefer reading the input string from file
     # might be the best also for containers
     arg_parser.add_argument('--writeInputToTxt',
@@ -243,13 +303,12 @@ if __name__ == "__main__":
                             help='Change directory where input, output \
                                   and log files should be stored. \
                                   Default: /data')
-
     # Container workdir
-    arg_parser.add_argument('--containerWorkDir',
-                            dest='ctr_workdir',
-                            default="/data",
-                            help='Change workdir inside the container. \
-                                  Default: /')
+#    arg_parser.add_argument('--containerWorkDir',
+#                            dest='ctr_workdir',
+#                            default="/data",
+#                            help='Change workdir inside the container. \
+#                                  Default: /')
 
     # Container cvmfs
     arg_parser.add_argument('--containerCvmfs',
