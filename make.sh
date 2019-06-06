@@ -15,7 +15,8 @@ rm -rf $DISTDIR/*
 rm -rf $BUILDDIR/*
 
 # loop over all target
-for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
+# already in the old directory: "buildGen" "runAthena" "buildJob"
+for TARGET in "runGen"
   do
   echo "Start " $TARGET  
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`

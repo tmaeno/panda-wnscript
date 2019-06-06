@@ -1,0 +1,948 @@
+#!/bin/bash
+
+"exec" "python" "-Wignore" "$0" "$@"
+
+"""
+Run Athena
+
+Usage:
+
+$ source $SITEROOT/setup.sh
+$ source $T_DISTREL/AtlasRelease/*/cmt/setup.sh -tag_add=???
+$ runAthena -l [libraries] -r [rundir] -j [jobOs] -i [inputs] -o [optputs] -c \
+            -p [pool_refs] -u [lrc_url]
+
+-l [libraries] : an archive which contains libraries
+-r [rundir]    : relative path to the directory where Athena runs
+-j [jobOs]     : job options passed to athena. format: 'options'
+-i [inputs]    : list of input files. format: ['in1',...'inN']
+-o [outputs]   : map of output files. format: {'type':'name',..}
+                  type:'hist','ntuple','ESD','AOD','TAG','AANT','Stream1','THIST'
+-b             : bytestream
+-c             : event collection
+-p [pool_refs] : list of POOL refs
+-u [lrc_url]   : URL of LRC
+-f [fragment]  : jobO fragment
+-a [jobO files]: archive name of jobOs
+-m [minbias]   : list of minimum bias files
+-n [cavern]    : list of cavern files
+--debug        : debug
+--directIn     : read input files from SE
+--oldPrefix    : old prefix to be replaced when converting TURL
+--newPrefix    : new prefix to be used when converting TURL
+
+Example:
+
+runAthena \
+  -l libraries.tgz \
+  -r PhysicsAnalysis/AnalysisCommon/UserAnalysis/UserAnalysis-00-03-03/run \
+  -j "-c 'EvtMax=10' opt.py RecExCommon.py" \
+  -i ['input1.AOD.pool.root','input2.AOD.pool.root','input3.AOD.pool.root'] \
+  -o ['hist':'hist.root','ntuple':'ntuple.root','log':'athena.log']
+
+Procedure:
+
+* expand libraries
+* make PoolFileCatalog.xml
+* create post-jobO which overwrites some parameters
+* get PDGTABLE.MeV
+* run athena
+
+"""
+
+# import optparse
+import re
+import os
+import sys
+import types
+import getopt
+import commands
+import urllib
+import urllib2
+import xml.dom.minidom
+
+# error code
+EC_PoolCatalog = 20
+EC_MissingArg  = 30
+EC_AthenaFail  = 40
+EC_NoInput     = 141
+
+# command-line parameters
+eventColl  = False
+byteStream = False
+backNavi   = False
+debugFlag  = False
+poolRefs = []
+urlLRC = ''
+libraries    = ''
+fragmentJobO = ''
+archiveJobO  = ''
+minbiasFiles = []
+cavernFiles  = []
+oldPrefix    = ''
+newPrefix    = ''
+directIn     = False
+lfcHost      = ''
+inputGUIDs   = []
+minbiasGUIDs = []
+cavernGUIDs  = []
+shipInput    = False
+addPoolFC    = []
+corCheck     = False
+
+opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
+                           ["pilotpars","debug","oldPrefix=","newPrefix=",
+                            "directIn","lfcHost=","inputGUIDs=","minbiasGUIDs=",
+                            "cavernGUIDs=","shipInput","addPoolFC=","corCheck"])
+for o, a in opts:
+    if o == "-l":
+        libraries=a
+    if o == "-r":
+        runDir=a
+    if o == "-j":
+        jobO=urllib.unquote(a)
+    if o == "-i":
+        exec "inputFiles="+a
+    if o == "-o":
+        exec "outputFiles="+a
+    if o == "-m":
+        exec "minbiasFiles="+a
+    if o == "-n":
+        exec "cavernFiles="+a
+    if o == "-b":
+        byteStream = True
+    if o == "-c":
+        eventColl = True
+    if o == "-p":
+        exec "poolRefs="+a
+    if o == "-u":
+        urlLRC=a
+    if o == "-f":
+        fragmentJobO=a
+    if o == "-a":
+        archiveJobO=a
+    if o == "-e":
+        backNavi = True
+    if o == "--debug":
+        debugFlag = True
+    if o == "--oldPrefix":
+        oldPrefix = a
+    if o == "--newPrefix":
+        newPrefix = a
+    if o == "--directIn":
+        directIn = True
+    if o == "--lfcHost":
+        lfcHost = a
+    if o == "--inputGUIDs":
+        exec "inputGUIDs="+a
+    if o == "--minbiasGUIDs":
+        exec "minbiasGUIDs="+a
+    if o == "--cavernGUIDs":
+        exec "cavernGUIDs="+a
+    if o == "--shipInput":
+        shipInput = True
+    if o == "--addPoolFC":
+        addPoolFC = a.split(',')
+    if o == "--corCheck":
+        corCheck = True
+
+# dump parameter
+try:
+    print "=== parameters ==="
+    print libraries
+    print runDir
+    print jobO
+    print inputFiles
+    print outputFiles
+    print byteStream
+    print eventColl
+    print backNavi
+    print debugFlag
+    print poolRefs
+    print urlLRC
+    print fragmentJobO
+    print minbiasFiles
+    print cavernFiles
+    print oldPrefix
+    print newPrefix
+    print directIn
+    print lfcHost
+    print inputGUIDs
+    print minbiasGUIDs
+    print cavernGUIDs
+    print addPoolFC
+    print corCheck
+    print "==================="    
+except:
+    sys.exit(EC_MissingArg)
+
+
+# get PFNs from LRC
+def _getPFNsFromLRC (urlLRC,items,isGUID=True,old_prefix='',new_prefix=''):
+    pfnMap = {}
+    if len(items)>0:
+        # get PoolFileCatalog
+        iITEM = 0
+        strITEMs = ''
+        for item in items:
+            iITEM += 1
+            # make argument
+            strITEMs += '%s ' % item
+            if iITEM % 35 == 0 or iITEM == len(items):
+                # get PoolFileCatalog
+                strITEMs = strITEMs.rstrip()
+                if isGUID:
+                    data = {'guids':strITEMs}
+                else:
+                    data = {'lfns':strITEMs}                    
+                # avoid too long argument
+                strITEMs = ''
+                # GET
+                url = '%s/lrc/PoolFileCatalog?%s' % (urlLRC,urllib.urlencode(data))
+                req = urllib2.Request(url)
+                fd = urllib2.urlopen(req)
+                out = fd.read()
+                if out.startswith('Error'):
+                    continue
+                if not out.startswith('<?xml'):
+                    continue
+                # get SURLs
+                try:
+                    root  = xml.dom.minidom.parseString(out)
+                    files = root.getElementsByTagName('File')
+                    for file in files:
+                        # get ID
+                        id = str(file.getAttribute('ID'))
+                        # get PFN node
+                        physical = file.getElementsByTagName('physical')[0]
+                        pfnNode  = physical.getElementsByTagName('pfn')[0]
+                        # convert UTF8 to Raw
+                        pfn = str(pfnNode.getAttribute('name'))
+                        # remove :8443/srm/managerv1?SFN=
+                        pfn = re.sub(':8443/srm/managerv1\?SFN=','',pfn)
+                        if old_prefix=='':
+                            # remove protocol and host
+                            pfn = re.sub('^[^:]+://[^/]+','',pfn)
+                            # remove redundant /
+                            pfn = re.sub('^//','/',pfn)
+                            # put dcache if /pnfs
+                            if pfn.startswith('/pnfs'):
+                                pfn = 'dcache:%s' % pfn
+                        else:
+                            # replace prefix
+                            pfn = re.sub(old_prefix,new_prefix,pfn)
+                        # append
+                        pfnMap[id] = pfn
+                except:
+                    pass
+    return pfnMap
+
+
+# get PFNs from LFC
+def _getPFNsFromLFC (lfc_host,items,old_prefix='',new_prefix=''):
+    pfnMap   = {}
+    # import lfc
+    try:
+        import lfc
+    except:
+        print "ERROR : cound not import lfc"
+        return pfnMap
+    # set LFC HOST
+    os.environ['LFC_HOST'] = lfc_host
+    # check bulk-operation
+    if not hasattr(lfc,'lfc_getreplicas'):
+        print "ERROR : bulk-ops is unsupported"
+        return pfnMap
+    frList = []
+    # set nGUID for bulk-ops
+    nGUID = 100
+    iGUID = 0
+    mapLFN = {}
+    listGUID = []
+    # loop over all items
+    for item in items:
+        iGUID += 1
+        listGUID.append(item)
+        if iGUID % nGUID == 0 or iGUID == len(items):
+            # get replica
+            ret,resList = lfc.lfc_getreplicas(listGUID,'')
+            if ret != 0:
+                err_num = lfc.cvar.serrno
+                err_string = lfc.sstrerror(err_num)
+                print "ERROR : LFC access failure - %s" % err_string
+            else:
+                for fr in resList:
+                    if fr != None and ((not hasattr(fr,'errcode')) or \
+                                       (hasattr(fr,'errcode') and fr.errcode == 0)):
+                        # skip empty or corrupted SFN 
+                        if fr.sfn == '' or re.search('[^\w\./\-\+\?:&=]',fr.sfn) != None:
+                            if globalVerbose:
+                                print "WARNING : wrong SFN '%s'" % fr.sfn
+                            continue
+                        # check host
+                        if not fr.sfn.startswith(old_prefix):
+                            continue
+                        guid = fr.guid
+                        # use first one
+                        if pfnMap.has_key(guid):
+                            continue
+                        # replace prefix
+                        pfn = re.sub(old_prefix,new_prefix,fr.sfn)
+                        # assign
+                        pfnMap[guid] = pfn
+            # reset                        
+            listGUID = []
+    # return        
+    return pfnMap
+
+
+# check input files
+if directIn:
+    if lfcHost != '':
+        # get PFNs from LFC
+        directTmp = _getPFNsFromLFC (lfcHost,inputGUIDs+minbiasGUIDs+cavernGUIDs,
+                                     old_prefix=oldPrefix,new_prefix=newPrefix)
+    else:
+        # get PFNs from LRC    
+        directTmp = _getPFNsFromLRC (urlLRC,inputFiles+minbiasFiles+cavernFiles,
+                                     isGUID=False,old_prefix=oldPrefix,
+                                     new_prefix=newPrefix)
+    # collect LFNs
+    curFiles   = []
+    directPFNs = {}
+    for id in directTmp.keys():
+        lfn = directTmp[id].split('/')[-1]
+        curFiles.append(lfn)
+        directPFNs[lfn] = directTmp[id]
+else:
+    curFiles = os.listdir('.')
+
+flagMinBias = False
+flagCavern  = False
+
+if len(inputFiles) > 0 and (not shipInput):
+    tmpFiles = tuple(inputFiles)
+    for tmpF in tmpFiles:
+        findF = False
+        findName = ''
+        for curF in curFiles:
+            if re.search('^'+tmpF,curF) != None:
+                findF = True
+                findName = curF
+                break
+        # remove if not exist
+        if not findF:
+            print "%s not exist" % tmpF
+            inputFiles.remove(tmpF)
+        # use URL
+        if directIn and findF:
+            inputFiles.remove(tmpF)
+            inputFiles.append(directPFNs[findName])
+    if len(inputFiles) == 0:
+        print "No input file is available"
+        sys.exit(EC_NoInput)        
+
+if len(minbiasFiles) > 0:
+    flagMinBias = True
+    tmpFiles = tuple(minbiasFiles)
+    for tmpF in tmpFiles:
+        findF = False
+        findName = ''
+        for curF in curFiles:
+            if re.search('^'+tmpF,curF) != None:
+                findF = True
+                findName = curF
+                break
+        # remove if not exist
+        if not findF:
+            print "%s not exist" % tmpF
+            minbiasFiles.remove(tmpF)
+        # use URL
+        if directIn and findF:
+            minbiasFiles.remove(tmpF)
+            minbiasFiles.append(directPFNs[findName])
+    if len(minbiasFiles) == 0:
+        print "No input file is available for Minimum-bias"
+        sys.exit(EC_NoInput)        
+
+if len(cavernFiles) > 0:
+    flagCavern = True
+    tmpFiles = tuple(cavernFiles)
+    for tmpF in tmpFiles:
+        findF = False
+        findName = ''
+        for curF in curFiles:
+            if re.search('^'+tmpF,curF) != None:
+                findF = True
+                findName = curF
+                break
+        # remove if not exist
+        if not findF:
+            print "%s not exist" % tmpF
+            cavernFiles.remove(tmpF)
+        # use URL
+        if directIn and findF:
+            cavernFiles.remove(tmpF)
+            cavernFiles.append(directPFNs[findName])
+    if len(cavernFiles) == 0:
+        print "No input file is available for Cavern"
+        sys.exit(EC_NoInput)        
+
+print "=== New inputFiles ==="
+print inputFiles
+if flagMinBias:
+    print "=== New minbiasFiles ==="
+    print minbiasFiles
+if flagCavern:    
+    print "=== New cavernFiles ==="
+    print cavernFiles
+
+
+# save current dir
+currentDir = os.getcwd()
+
+# crate work dir
+workDir = currentDir+"/workDir"
+commands.getoutput('rm -rf %s' % workDir)
+os.makedirs(workDir)
+os.chdir(workDir)
+
+# expand libraries
+if libraries == '':
+    pass
+elif libraries.startswith('/'):
+    print commands.getoutput('tar xvfz %s' % libraries)
+else:
+    print commands.getoutput('tar xvfz %s/%s' % (currentDir,libraries))
+
+# expand jobOs if needed
+if archiveJobO != "":
+    print "--- wget for jobO ---"
+    output = commands.getoutput('wget -h')
+    wgetCommand = 'wget'
+    for line in output.split('\n'):
+        if re.search('--no-check-certificate',line) != None:
+            wgetCommand = 'wget --no-check-certificate'
+            break
+    print commands.getoutput('%s https://gridui01.usatlas.bnl.gov:25443/cache/%s' % (wgetCommand,archiveJobO))
+    commands.getoutput('tar xvfz %s' % archiveJobO)
+
+# make rundir just in case
+commands.getoutput('mkdir %s' % runDir)
+# go to run dir
+os.chdir(runDir)
+
+# create PoolFC
+def _createPoolFC(pfnMap):
+    outFile = open('PoolFileCatalog.xml','w')
+    # write header
+    header = \
+    """<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+    <!-- Edited By POOL -->
+    <!DOCTYPE POOLFILECATALOG SYSTEM "InMemory">
+    <POOLFILECATALOG>
+    """
+    outFile.write(header)
+    # write files
+    item = \
+    """
+      <File ID="%s">
+        <physical>
+          <pfn filetype="ROOT_All" name="%s"/>
+        </physical>
+        <logical/>
+      </File>
+    """
+    for guid,pfn in pfnMap.iteritems():
+        outFile.write(item % (guid.upper(),pfn))
+    # write trailer
+    trailer = \
+    """
+    </POOLFILECATALOG>
+    """
+    outFile.write(trailer)
+    outFile.close()
+    
+
+# build pool catalog
+print "build pool catalog"
+commands.getoutput('rm -f PoolFileCatalog.xml')
+# for user specified files
+for fileName in addPoolFC:
+    # insert it to pool catalog    
+    com = 'pool_insertFileToCatalog %s' % fileName
+    print com
+    status,output = commands.getstatusoutput(com)
+    print output
+# for input files
+if eventColl:
+    # ROOT ver collection or AANT
+    if len(inputFiles)>0:
+        # get extPoolRefs.C
+        macroPoolRefs = 'extPoolRefs.C'
+        # append workdir to CMTPATH
+        env = 'CMTPATH=%s:$CMTPATH' % workDir
+        com  = 'export %s;' % env
+        com += 'mkdir cmt; cd cmt;'
+        com += 'echo "use AtlasPolicy AtlasPolicy-*" > requirements;'
+        com += 'cmt config;'
+        com += 'source setup.sh;'
+        com += 'cd ..;'
+        com += 'get_files -jo %s' % macroPoolRefs
+        print commands.getoutput(com)
+        for fileName in inputFiles:
+            # build ROOT command
+            com = 'echo '
+            if not directIn:
+                # form symlink to input file without attemptNr
+                newFileName = re.sub('\.\d+$','',fileName)
+                try:
+                    os.symlink('%s/%s' % (currentDir,fileName),newFileName)
+                except:
+                    pass
+                # just in case for shipInput
+                if shipInput:
+                    try:
+                        os.rename(fileName,newFileName)
+                    except:
+                        pass
+            else:
+                # direct reading from SE
+                newFileName = fileName
+            com += '%s ' % newFileName
+            com += ' --- | root.exe -b %s' % macroPoolRefs
+            print com
+            status,output = commands.getstatusoutput(com)
+	    print output
+            # get POOL refs
+            for line in output.split('\n'):
+                if line.startswith('PoolRef:') or line.startswith('ESD Ref:') or \
+                       line.startswith('RDO Ref:') or line.startswith('St1 Ref:'):
+                    match = re.search('\[DB=([^\]]+)\]',line)
+                    if match != None:
+                        if not match.group(1) in poolRefs:
+                            poolRefs.append(match.group(1))
+    # new poolRefs
+    print "=== New poolRefs ==="
+    print poolRefs
+    if len(poolRefs)>0:
+        if lfcHost != '':
+            # get PFNs from LFC 
+            pfnMap = _getPFNsFromLFC (lfcHost,poolRefs,
+                                      old_prefix=oldPrefix,
+                                      new_prefix=newPrefix)
+        else:
+            # get PFNs from LRC 
+            pfnMap = _getPFNsFromLRC (urlLRC,poolRefs,isGUID=True,
+                                      old_prefix=oldPrefix,
+                                      new_prefix=newPrefix)
+        print "=== Create PoolFC ==="
+        for ref in poolRefs:
+            if not pfnMap.has_key(ref):
+                print " %s not found" % ref
+        # create PoolFC
+        _createPoolFC(pfnMap)
+elif len(inputFiles+minbiasFiles+cavernFiles) > 0:
+    # POOL or BS files
+    for fileName in inputFiles+minbiasFiles+cavernFiles:
+        if not directIn:
+            targetName = fileName
+            # for rome data
+            if re.search(fileName,'\.\d+$')==None and (not fileName in curFiles):
+                for cFile in curFiles:
+                    if re.search('^'+fileName,cFile) != None:
+                        targetName = cFile
+                        break
+            # form symlink to input file
+            try:
+                os.symlink('%s/%s' % (currentDir,targetName),fileName)
+            except:
+                pass
+        if not byteStream:
+            # corruption check by scanning all TTrees
+            if corCheck:
+                # construct command
+                print "=== check corruption for %s ===" % fileName
+                optPy = '%s.py' % commands.getoutput('uuidgen')
+                outFile = open(optPy,'w')
+                outFile.write("""
+import sys
+import ROOT
+t = ROOT.TFile('%s')
+""" % fileName)
+                outFile.write("""
+keyList = t.GetListOfKeys()
+scannedKeys = []
+for keyItem in keyList:
+    tree = keyItem.ReadObj()
+    if tree.GetName() in scannedKeys:
+        continue
+    print '===%s===' % tree.GetName()
+    nEvent = tree.GetEntriesFast()
+    print nEvent
+    detectFlag = False
+    try:
+        for iEvent in range(nEvent):
+            ret = tree.GetEntry(iEvent)
+            if ret < 0:
+                print ret
+                print iEvent
+                detectFlag = True
+                sys.exit(1)
+    except:
+        if detectFlag:
+            sys.exit(1)
+        type, value, traceBack = sys.exc_info()
+        print 'EXCEPT: %s - %s' % (type,value)
+        if 'St9bad_alloc' in str(value):
+            sys.exit(2)
+    scannedKeys.append(tree.GetName())
+sys.exit(0)
+""")
+                outFile.close()
+                # run checker
+                status,out = commands.getstatusoutput('python %s' % optPy)
+                print status
+                print out
+                commands.getoutput('rm -f %s' % optPy)
+                if status != 0 \
+                       or out.find("read too few bytes") != -1 \
+                       or out.find("read too many bytes") != -1 \
+                       or out.find("segmentation violation") != -1:
+                    print "->skip %s" % fileName
+                    continue
+            # insert it to pool catalog
+            com = 'pool_insertFileToCatalog %s' % fileName
+            print com
+            status,output = commands.getstatusoutput(com)
+            print output
+    # read PoolFileCatalog.xml
+    pLines = ''
+    try:
+        pFile = open('PoolFileCatalog.xml')
+        for line in pFile:
+            pLines += line
+        pFile.close()
+    except:
+        print "ERROR : cannot open PoolFileCatalog.xml"
+    # remove corrupted files
+    print "=== corruption check ==="
+    # doesn't check BS files since they don't invoke insert_PFC
+    if not byteStream:
+        tmpFiles = tuple(inputFiles)
+        for tmpF in tmpFiles:
+            if re.search(tmpF,pLines) == None:
+                inputFiles.remove(tmpF)
+                print "%s is corrupted" % tmpF
+    if len(inputFiles)==0:        
+        print "No input file is available after corruption check"
+        sys.exit(EC_NoInput)        
+    # extract POOL refs
+    if backNavi:
+        # construct command
+        evtPy = 'EventCount.py'
+	optPy = '%s.py' % commands.getoutput('uuidgen')
+	print "=== run %s to extract POOL refs ===" % evtPy
+        com  = 'get_files -jo %s;' % evtPy
+	com += 'echo "theApp.EvtMax=-1" > %s;' % optPy
+        com += 'athena.py -c "In=%s" %s %s;' % (inputFiles,evtPy,optPy)
+	com += 'rm -f %s' % optPy
+        # run athena
+        status,out = commands.getstatusoutput(com)
+        print out
+	# extract
+        flagStream = False
+	for line in out.split('\n'):
+            if re.search('^EventCount',line) == None:
+                continue
+            if re.search("Input contained references to the following File GUID",line) != None:
+                flagStream = True
+                continue
+            if re.search("Input contained the following CLIDs and Keys",line) != None:
+                flagStream = False
+                continue
+            if flagStream:
+                match = re.search('([0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12})',
+                                  line)
+                if match != None:
+                    poolRefs.append(match.group(1))
+        # new poolRefs
+        print "=== New poolRefs ==="
+        print poolRefs
+        if len(poolRefs)>0:
+            if lfcHost != '':
+                # get PFNs from LFC 
+                pfnMap = _getPFNsFromLFC (lfcHost,poolRefs,
+                                          old_prefix=oldPrefix,
+                                          new_prefix=newPrefix)
+            else:
+                # get PFNs from LRC 
+                pfnMap = _getPFNsFromLRC (urlLRC,poolRefs,isGUID=True,
+                                          old_prefix=oldPrefix,
+                                          new_prefix=newPrefix)
+            print "=== add POOL refs to PoolFC ==="
+            for ref in poolRefs:
+                if not pfnMap.has_key(ref):
+                    print " %s not found" % ref
+            # extract FIDs from PoolFC
+            try:
+                root  = xml.dom.minidom.parse("PoolFileCatalog.xml")
+                files = root.getElementsByTagName('File')
+                for file in files:
+                    # get ID
+                    id = str(file.getAttribute('ID'))
+                    # get PFN node
+                    physical = file.getElementsByTagName('physical')[0]
+                    pfnNode  = physical.getElementsByTagName('pfn')[0]
+                    # convert UTF8 to Raw
+                    pfn = str(pfnNode.getAttribute('name'))
+                    # append
+                    pfnMap[id] = pfn
+            except:
+                pass
+            # create PoolFC
+            _createPoolFC(pfnMap)
+    # print PoolFC
+    print "=== PoolFileCatalog.xml ==="
+    print commands.getoutput('cat PoolFileCatalog.xml')
+    print
+
+# create post-jobO file which overwrites some parameters
+postOpt = commands.getoutput('uuidgen') + '.py'
+oFile = open(postOpt,'w')
+if len(inputFiles) != 0:
+    if (re.search('theApp.EvtMax',fragmentJobO) == None) and \
+       (re.search('EvtMax',jobO) == None):
+        oFile.write('theApp.EvtMax = -1\n')
+    if byteStream:
+        # BS
+        oFile.write('ByteStreamInputSvc = Service( "ByteStreamInputSvc" )\n')
+        oFile.write('ByteStreamInputSvc.FullFileName = %s\n' % inputFiles)        
+    else:
+        oFile.write('EventSelector = Service( "EventSelector" )\n')
+        if eventColl:
+            # TAG
+            newInputs = []
+            for infile in inputFiles:
+                # remove suffix for event collection
+                newInputs.append(re.sub('\.root\.*\d*$','',infile))
+            oFile.write('EventSelector.InputCollections = %s\n' % newInputs)
+            oFile.write('EventSelector.CollectionType = "ExplicitROOT"\n')
+        else:
+            # normal POOL
+            oFile.write('EventSelector.InputCollections = %s\n' % inputFiles)
+if flagMinBias:
+    oFile.write('minBiasEventSelector = Service( "minBiasEventSelector" )\n')
+    oFile.write('minBiasEventSelector.InputCollections = %s\n' % minbiasFiles)
+if flagCavern:
+    oFile.write('cavernEventSelector = Service( "cavernEventSelector" )\n')
+    oFile.write('cavernEventSelector.InputCollections = %s\n' % cavernFiles)
+if outputFiles.has_key('hist'):    
+    oFile.write('HistogramPersistencySvc=Service("HistogramPersistencySvc")\n')
+    oFile.write('HistogramPersistencySvc.OutputFile = "%s"\n' % outputFiles['hist'])
+if outputFiles.has_key('ntuple'):
+    oFile.write('NTupleSvc = Service( "NTupleSvc" )\n')
+    firstFlag = True
+    for sName,fName in outputFiles['ntuple']:
+        if firstFlag:
+            firstFlag = False
+            oFile.write('NTupleSvc.Output=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))            
+        else:
+            oFile.write('NTupleSvc.Output+=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))
+oFile.write("""
+_configs = []
+try:
+    from AthenaCommon.AlgSequence import AlgSequence
+    tmpKeys = AlgSequence().allConfigurables.keys()
+    for key in tmpKeys:
+        if key.find('/') != -1:
+            key = key.split('/')[-1]
+        if hasattr(AlgSequence(),key):    
+            _configs.append(key)
+except:
+    pass
+
+def _getConfig(key):
+    from AthenaCommon.AlgSequence import AlgSequence
+    return getattr(AlgSequence(),key)
+
+""")
+if outputFiles.has_key('RDO'):
+    oFile.write("""
+key = "StreamRDO"    
+if key in _configs:
+    StreamRDO = _getConfig( key )
+else:
+    StreamRDO = Algorithm( key )
+""")
+    oFile.write('StreamRDO.OutputFile = "%s"\n' % outputFiles['RDO'])
+if outputFiles.has_key('ESD'):
+    oFile.write("""
+key = "StreamESD"    
+if key in _configs:
+    StreamESD = _getConfig( key )
+else:
+    StreamESD = Algorithm( key )
+""")
+    oFile.write('StreamESD.OutputFile = "%s"\n' % outputFiles['ESD'])
+if outputFiles.has_key('AOD'):
+    oFile.write("""
+key = "StreamAOD"    
+if key in _configs:
+    StreamAOD = _getConfig( key )
+else:
+    StreamAOD = Algorithm( key )
+""")
+    oFile.write('StreamAOD.OutputFile = "%s"\n' % outputFiles['AOD'])
+if outputFiles.has_key('TAG'):
+    oFile.write("""
+key = "StreamTAG"    
+if key in _configs:
+    StreamTAG = _getConfig( key )
+else:
+    StreamTAG = Algorithm( key )
+""")
+    oFile.write('StreamTAG.OutputCollection = "%s"\n' % re.sub('\.root\.*\d*$','',outputFiles['TAG']))
+if outputFiles.has_key('AANT'):
+    firstFlag = True
+    oFile.write('THistSvc = Service ( "THistSvc" )\n')
+    sNameList = []
+    for aName,sName,fName in outputFiles['AANT']:
+        if not sName in sNameList:
+            sNameList.append(sName)    
+            if firstFlag:
+                firstFlag = False
+                oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+            else:
+                oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))            
+        oFile.write("""
+key = "%s"
+if key in _configs:
+    AANTupleStream = _getConfig( key )
+else:
+    AANTupleStream = Algorithm( key )
+""" % aName)
+        oFile.write('AANTupleStream.StreamName = "%s"\n' % sName)
+        oFile.write('AANTupleStream.OutputName = "%s"\n' % fName)        
+    if outputFiles.has_key('THIST'):
+	for sName,fName in outputFiles['THIST']:
+	    oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+else:
+    if outputFiles.has_key('THIST'):
+        oFile.write('THistSvc = Service ( "THistSvc" )\n')
+	firstFlag = True
+	for sName,fName in outputFiles['THIST']:
+            if firstFlag:
+                firstFlag = False
+                oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+            else:
+	        oFile.write('THistSvc.Output+= ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+if outputFiles.has_key('Stream1'):
+    oFile.write("""
+key = "Stream1"    
+if key in _configs:
+    Stream1 = _getConfig( key )
+else:
+    Stream1 = Algorithm( key )
+""")
+    oFile.write('Stream1.OutputFile = "%s"\n' % outputFiles['Stream1'])
+uniqueTag = commands.getoutput('uuidgen')
+if outputFiles.has_key('BS'):
+    oFile.write('ByteStreamEventStorageOutputSvc = Service("ByteStreamEventStorageOutputSvc")\n')
+    oFile.write('ByteStreamEventStorageOutputSvc.FileTag = "%s"\n' % uniqueTag)
+    oFile.write('ByteStreamEventStorageOutputSvc.OutputDirectory = "./"\n')
+if fragmentJobO != "":
+    oFile.write('%s\n' % fragmentJobO)
+oFile.close()
+
+print "=== post jobO ==="
+oFile = open(postOpt)
+lines = ''
+for line in oFile:
+    lines += line
+print lines
+oFile.close()
+
+# get PDGTABLE.MeV
+commands.getoutput('get_files PDGTABLE.MeV')
+
+# temporary output to avoid MemeoryError
+tmpOutput = 'tmp.stdout.%s' % commands.getoutput('uuidgen')
+
+# append workdir to CMTPATH
+env = 'CMTPATH=%s:$CMTPATH' % workDir
+# construct command
+com  = 'export %s;' % env
+com += 'mkdir cmt; cd cmt;'
+com += 'echo "use AtlasPolicy AtlasPolicy-*" > requirements;'
+com += 'cmt config;'
+com += 'source setup.sh;'
+com += 'cd ..; env;'
+com += 'athena.py -s %s %s' % (jobO,postOpt)
+# run athena
+if not debugFlag:
+    # write stdout to tmp file
+    com += ' > %s' % tmpOutput
+    status,out = commands.getstatusoutput(com)
+    print out
+    try:
+        tmpOutFile = open(tmpOutput)
+        for line in tmpOutFile:
+            print line[:-1]
+        tmpOutFile.close()
+    except:
+        pass
+else:
+    status = os.system(com)
+
+print commands.getoutput('ls -l')
+
+# rename iROOT files
+if outputFiles.has_key('IROOT'):
+    for iROOT in outputFiles['IROOT']:
+        commands.getoutput('mv %s %s' % iROOT)
+
+# rename TAG files
+if outputFiles.has_key('TAG'):
+    woAttrNr = re.sub('\.\d+$','',outputFiles['TAG'])
+    if woAttrNr != outputFiles['TAG']:
+        print commands.getoutput('mv %s %s' % (woAttrNr,outputFiles['TAG']))
+    # since 13.0.30 StreamTAG doesn't append .root automatically
+    woRootAttrNr = re.sub('\.root\.*\d*$','',outputFiles['TAG'])
+    if woRootAttrNr != outputFiles['TAG']:
+        print commands.getoutput('mv %s %s' % (woRootAttrNr,outputFiles['TAG']))
+
+# rename BS file
+if outputFiles.has_key('BS'):
+    print commands.getoutput('mv daq.%s* %s' % (uniqueTag,outputFiles['BS']))
+    
+# copy results
+for file in outputFiles.values():
+    if type(file) != types.StringType:
+        # for AANT
+	for aaT in file:
+            commands.getoutput('mv %s %s' % (aaT[-1],currentDir))
+    else:
+        commands.getoutput('mv %s %s' % (file,currentDir))
+
+# copy PoolFC.xml
+commands.getoutput('mv -f PoolFileCatalog.xml %s' % currentDir)
+
+# go back to current dir
+os.chdir(currentDir)
+
+print
+print commands.getoutput('pwd')
+print commands.getoutput('ls -l')
+
+# remove work dir
+if not debugFlag:
+    commands.getoutput('rm -rf %s' % workDir)
+
+# return
+if status:
+    print "execute script: Running athena failed : %d" % status
+    sys.exit(EC_AthenaFail)
+else:
+    print "execute script: Running athena was successful"
+    sys.exit(0)
