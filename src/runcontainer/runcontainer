@@ -55,18 +55,17 @@ def singularity_sandbox(source_image=''):
                                                           'cache')
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],'image')
 
- 
     if not os.path.exists(target_image):
         logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
-        os.mkdir(os.environ['SINGULARITY_TMPDIR'],0o755)
+        if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
+            os.mkdirs(os.environ['SINGULARITY_TMPDIR'], 0o755)
         sing_cmd="singularity build --sandbox {0} {1}".format(target_image,
                                                               source_image)
+        logging.info("Singularity command: %s", sing_cmd)
+        execute(shlex.split(sing_cmd))
     else:
-        logging.debug('Local image {} already exists, low level health checking.'.format(target_image))
-        sing_cmd="singularity check {}".format(target_image) 
+        logging.debug('Local image {} already exists. Trying it....'.format(target_image))
     
-    logging.info("Singularity command: %s", sing_cmd)
-    execute(shlex.split(sing_cmd))
 
     if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
         logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
@@ -145,18 +144,29 @@ def singularity_container():
 
 def execute(cmd=[]):
 
-    try:
+    # Check runtime exists and is executable
+    # python 3.3                                                                                                                                                             # def cmd_exists(x):                                                                                                                                                     #    return shutil.which(x) is not None                                                                                                                               
+    def cmd_exists(x):
+        return any(
+            os.access(os.path.join(path, x), os.X_OK)
+            for path in os.environ["PATH"].split(os.pathsep)
+        )
 
-        ch = subprocess.Popen(cmd, stdout = subprocess.PIPE, bufsize = 1)
-        for line in iter(ch.stdout.readline,b''):
-            logging.info(line.strip())
-        ch.stdout.close()
-    except subprocess.CalledProcessError as cpe:
-        logging.error("Status : FAIL, Container execution failed with errors "+
-                      "check payload.stderr. Error code : %s\n%s",
-                      cpe.returncode, cpe.output)
-        sys.exit(cpe.returncode)
-        
+    if not cmd_exists(cmd[0]):
+        logging.error("singularity does not exist on this node. Please install.")
+        sys.exit(cmd_exists(cmd[0]))
+
+    # Run subprocess print stdout catch stderr in a generic way
+    ch = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, bufsize = 1)
+    ch_std = ch.communicate()
+    for line in ch_std[0].decode(encoding='utf-8').split('\n'):
+        logging.info(line.strip())
+
+    if ch.returncode != 0:
+        logging.error("Container execution failed with errors.")
+        logging.error("Error code %s: %s", ch.returncode, ch_std[1])
+        sys.exit(ch.returncode)
+
 
 def run_container():
 
