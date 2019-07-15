@@ -27,7 +27,7 @@ import subprocess
 import shlex
 import shutil
 
-VERSION = '1.0.21'
+VERSION = '1.0.22'
 
 def main():
 
@@ -58,7 +58,7 @@ def singularity_sandbox(source_image=''):
     if not os.path.exists(target_image):
         logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
-            os.mkdirs(os.environ['SINGULARITY_TMPDIR'], 0o755)
+            os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
         sing_cmd="singularity build --sandbox {0} {1}".format(target_image,
                                                               source_image)
         logging.info("Singularity command: %s", sing_cmd)
