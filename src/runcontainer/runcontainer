@@ -124,11 +124,8 @@ def singularity_container():
     # Makes it easier to handle whatever character 
     # is passed to the script
     file_name = '_runcontainer.sh'
-    with open(file_name,'w') as f:
-        if args.run_dir is not None:
-            f.write('cd {0}\n'.format(args.run_dir))
-        f.write(command+'\n')
-        os.chmod(file_name,0o700)
+    open(file_name,'w').write(command+'\n')
+    os.chmod(file_name,0o700)
     logging.info("User command: %s", command)
     pwd = os.environ['PWD']
     cmd = args.ctr_datadir+'/'+file_name
@@ -376,12 +373,6 @@ if __name__ == "__main__":
                             action='store_true',
                             default=False,
                             help='Enable debug mode for logging messages')
-
-    # Run dir
-    arg_parser.add_argument('-r',
-                            dest='run_dir',
-                            default=None,
-                            help='Run dir')
 
     # User sandbox filename
     arg_parser.add_argument('-a',
