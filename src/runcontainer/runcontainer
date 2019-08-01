@@ -21,11 +21,15 @@ import time
 import glob
 import argparse
 import logging
-import urllib
+try:
+    import urllib.request as urllib
+except ImportError:
+    import urllib
 import ast
 import subprocess
 import shlex
 import shutil
+import tarfile
 
 VERSION = '1.0.22'
 
@@ -36,6 +40,7 @@ def main():
     logging.info("runcontainer version: "+VERSION)
     logging.info("Start time: "+time.ctime())
 
+    get_user_sandbox()
     run_container()
     rename_ouput()
 
@@ -256,6 +261,27 @@ def rename_ouput():
                         logging.error("Cannot mv: "+format(err))
 
 
+def get_user_sandbox():
+    if args.user_sandbox is None or args.source_url is None:
+        return
+    url = args.source_url + '/cache/' + args.user_sandbox
+    logging.info("Getting a user sandbox from {0}".format(url))
+    isOK = False
+    for i in range(3):
+        try:
+            urllib.urlretrieve(url, args.user_sandbox)
+            isOK = True
+            break
+        except Exception:
+            time.sleep(30)
+    if not isOK:
+        logging.error("Cannot download the user sandbox")
+        sys.exit(1)
+    logging.info("Extracting the user sandbox")
+    with tarfile.open(args.user_sandbox) as f:
+        f.extractall()
+
+
 if __name__ == "__main__":
 
     arg_parser = argparse.ArgumentParser()
@@ -347,6 +373,18 @@ if __name__ == "__main__":
                             action='store_true',
                             default=False,
                             help='Enable debug mode for logging messages')
+
+    # User sandbox filename
+    arg_parser.add_argument('-a',
+                            dest='user_sandbox',
+                            default=None,
+                            help='User sandbox filename')
+
+    # URL of sandbox server
+    arg_parser.add_argument('--sourceURL',
+                            dest='source_url',
+                            default=None,
+                            help='URL of user sandbox server')
 
     args, unknown = arg_parser.parse_known_args()
 
