@@ -17,6 +17,7 @@
 import os
 import sys
 import re
+import ssl
 import time
 import glob
 import argparse
@@ -269,7 +270,7 @@ def get_user_sandbox():
     isOK = False
     for i in range(3):
         try:
-            urllib.urlretrieve(url, args.user_sandbox)
+            urllib.urlretrieve(url, args.user_sandbox, context=ssl.SSLContext(ssl.PROTOCOL_SSLv23))
             isOK = True
             break
         except Exception:
