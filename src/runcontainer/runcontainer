@@ -26,6 +26,11 @@ try:
     import urllib.request as urllib
 except ImportError:
     import urllib
+try:
+    from urllib.request import urlopen
+    from urllib.error import HTTPError
+except ImportError:
+    from urllib2 import urlopen, HTTPError
 import ast
 import subprocess
 import shlex
@@ -268,15 +273,24 @@ def get_user_sandbox():
     url = args.source_url + '/cache/' + args.user_sandbox
     logging.info("Getting a user sandbox from {0}".format(url))
     isOK = False
+    errStr = None
     for i in range(3):
         try:
-            urllib.urlretrieve(url, args.user_sandbox, context=ssl.SSLContext(ssl.PROTOCOL_SSLv23))
+            res = urlopen(url, context=ssl.SSLContext(ssl.PROTOCOL_SSLv23))
             isOK = True
+            with open(args.user_sandbox, 'wb') as f:
+                f.write(res.read())
             break
-        except Exception:
+        except HTTPError as e:
+            errStr = 'HTTP code: {0} - Reason: {1}'.format(e.code, e.reason)
+            # doesn't exist
+            if e.code == 404:
+                break
+        except Exception as e:
+            errStr = str(e)
             time.sleep(30)
     if not isOK:
-        logging.error("Cannot download the user sandbox")
+        logging.error("Cannot download the user sandbox with {0}".format(errStr))
         sys.exit(1)
     logging.info("Extracting the user sandbox")
     with tarfile.open(args.user_sandbox) as f:
