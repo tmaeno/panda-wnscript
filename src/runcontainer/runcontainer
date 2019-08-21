@@ -36,8 +36,9 @@ import subprocess
 import shlex
 import shutil
 import tarfile
+import xml.dom.minidom
 
-VERSION = '1.0.22'
+VERSION = '1.0.23'
 
 def main():
 
@@ -189,11 +190,60 @@ def run_container():
 
     logging.info("End container time: "+time.ctime())
 
+def read_poolfilecatalog():
+
+  directTmpTurl = {}
+  try:
+    logging.info("===== PFC from pilot =====")
+    tmpPcFile = open("PoolFileCatalog.xml")
+    logging.info(tmpPcFile.read())
+    tmpPcFile.close()
+    # parse XML
+    root  = xml.dom.minidom.parse("PoolFileCatalog.xml")
+    files = root.getElementsByTagName('File')
+    for file in files:
+      # get ID
+      id = str(file.getAttribute('ID'))
+      # get PFN node
+      physical = file.getElementsByTagName('physical')[0]
+      pfnNode  = physical.getElementsByTagName('pfn')[0]
+      # convert UTF8 to Raw
+      pfn = str(pfnNode.getAttribute('name'))
+      lfn = pfn.split('/')[-1]
+      lfn = re.sub('__DQ2-\d+$','',lfn)
+      lfn = re.sub('^([^:]+:)','', lfn)
+      lfn = re.sub('\?site.*$','', lfn)
+      lfn = re.sub('\?select.*$','', lfn)
+      lfn = re.sub('\?GoogleAccessId.*$','',lfn)
+      # append
+      directTmpTurl[id] = pfn
+  except:
+    type, value, traceBack = sys.exc_info()
+    logging.error('ERROR : Failed to collect GUIDs : %s - %s',type,value)
+
+  return directTmpTurl
 
 def input():
 
     # Dictionary to merge --inDS --inMap options and treat them in the same way
     in_map = {}
+
+    # Use the TURLs from PoolFileCatalog.xml created by pilot
+    directTurls = read_poolfilecatalog()
+    logging.info("===== GUIDs and TURLs in PFC =====")
+    logging.info(directTurls)
+    # collect LFNs
+    directPFNs = {}
+    for id in directTurls.keys():
+        lfn = directTurls[id].split('/')[-1]
+        lfn = re.sub('__DQ2-\d+$','',lfn)
+        lfn = re.sub('^([^:]+:)','', lfn)
+        lfn = re.sub('\?site.*$','', lfn)
+	lfn = re.sub('\?select.*$','', lfn)
+        lfn = re.sub('\?GoogleAccessId.*$','',lfn)
+        directPFNs[lfn] = directTurls[id]
+    logging.info("===== PFNs and TURLs in PFC =====")
+    logging.info(directPFNs)
 
     if args.input_map:
         logging.info("Input primary and secondary files %s" % args.input_map)
@@ -203,6 +253,7 @@ def input():
         in_map['IN'] = args.input_files
     else:
         logging.info("No input files requested")
+        
     for key, in_files in in_map.iteritems():
         input_string = ''
         for filename in in_files:
@@ -210,9 +261,15 @@ def input():
                 filename = os.path.join(args.ctr_datadir, filename)
                 input_string += "%s," % filename
                 in_map[key] = input_string[:-1]
+            elif directPFNs.has_key(filename):
+                input_string += "%s," % directPFNs[filename]
+                in_map[key] = input_string[:-1]
             else:
-                logging.info("Input file %s is missing: ", filename)
-
+                logging.info("Input file is missing: %s", filename)
+            
+    logging.info("===== in_map =====")
+    logging.info( in_map )
+    
     # Write input files string to a text file
     if args.input_text:
         # Write input files if needed
