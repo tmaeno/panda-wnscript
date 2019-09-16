@@ -448,20 +448,6 @@ if __name__ == "__main__":
                             default="",
                             help='Write input to a text file')
 
-    # Use PoolFileCatalog
-    arg_parser.add_argument('--usePFCTurl',
-                            dest='use_pfc',
-                            action='store_true',
-                            default=False,
-                            help='Use PFC?')
-
-    # Use directIO
-    arg_parser.add_argument('--directIn',
-                            dest='direct_input',
-                            action='store_true',
-                            default=False,
-                            help='Use direct IO')
-
     # Container data directory
     arg_parser.add_argument('--containerDataDir',
                             dest='ctr_datadir',
