@@ -38,7 +38,7 @@ import shutil
 import tarfile
 import xml.dom.minidom
 
-VERSION = '1.1.0'
+VERSION = '1.1.1'
 
 
 def main():
