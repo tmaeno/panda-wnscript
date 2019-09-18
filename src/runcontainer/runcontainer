@@ -107,9 +107,12 @@ def singularity_user_proxy():
     ca_cert_dir = '/etc/grid-security/certificates'
     if os.path.isdir(ca_cert_dir) and 'X509_CERT_DIR' not in os.environ:
         os.environ['X509_CERT_DIR'] = ca_cert_dir
-    else:
+
+    if 'X509_CERT_DIR'  not in os.environ:
         logging.error('X509_CERT_DIR undefined')
         sys.exit(1163)
+
+    logging.debug('X509_CERT_DIR={} X509_USER_PROXY={}'.format(os.environ['X509_CERT_DIR'],os.environ['X509_USER_PROXY']))
 
     return '-B {}:{}'.format(os.environ['X509_CERT_DIR'], ca_cert_dir)
 
@@ -456,11 +459,11 @@ if __name__ == "__main__":
                                   and log files should be stored. \
                                   Default: /data')
     # Container workdir
-#    arg_parser.add_argument('--containerWorkDir',
-#                            dest='ctr_workdir',
-#                            default="/data",
-#                            help='Change workdir inside the container. \
-#                                  Default: /')
+    arg_parser.add_argument('--containerWorkDir',
+                            dest='ctr_workdir',
+                            default="/data",
+                            help='Change workdir inside the container. \
+                                  Default: /')
 
     # Container cvmfs
     arg_parser.add_argument('--containerCvmfs',
