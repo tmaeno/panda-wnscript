@@ -38,7 +38,7 @@ import shutil
 import tarfile
 import xml.dom.minidom
 
-VERSION = '1.1.1'
+VERSION = '1.1.2'
 
 
 def main():
@@ -72,8 +72,10 @@ def singularity_sandbox(source_image=''):
         logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
-        sing_cmd = "singularity build --sandbox {0} {1}".format(target_image,
-                                                                source_image)
+        silent = '-s'
+        if args.debug:
+            silent = ''
+        sing_cmd = "singularity {0} build --sandbox {1} {2}".format(silent, target_image, source_image)
         logging.info("Singularity command: %s", sing_cmd)
         execute(shlex.split(sing_cmd))
     else:
@@ -238,7 +240,7 @@ def read_poolfilecatalog():
     try:
         logging.info('===== PFC from pilot =====')
         tmpPcFile = open('PoolFileCatalog.xml')
-        logging.info(tmpPcFile.read())
+        logging.debug(tmpPcFile.read())
         tmpPcFile.close()
 
         # parse XML
@@ -454,16 +456,16 @@ if __name__ == "__main__":
     # Container data directory
     arg_parser.add_argument('--containerDataDir',
                             dest='ctr_datadir',
-                            default="/data",
+                            default="/ctrdata",
                             help='Change directory where input, output \
                                   and log files should be stored. \
-                                  Default: /data')
+                                  Default: /ctrdata')
     # Container workdir
     arg_parser.add_argument('--containerWorkDir',
                             dest='ctr_workdir',
-                            default="/data",
+                            default="/ctrdata",
                             help='Change workdir inside the container. \
-                                  Default: /')
+                                  Default: /ctrdata')
 
     # Container cvmfs
     arg_parser.add_argument('--containerCvmfs',
