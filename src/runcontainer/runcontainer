@@ -456,16 +456,16 @@ if __name__ == "__main__":
     # Container data directory
     arg_parser.add_argument('--containerDataDir',
                             dest='ctr_datadir',
-                            default="/data",
+                            default="/ctrdata",
                             help='Change directory where input, output \
                                   and log files should be stored. \
-                                  Default: /data')
+                                  Default: /ctrdata')
     # Container workdir
     arg_parser.add_argument('--containerWorkDir',
                             dest='ctr_workdir',
-                            default="/data",
+                            default="/ctrdata",
                             help='Change workdir inside the container. \
-                                  Default: /')
+                                  Default: /ctrdata')
 
     # Container cvmfs
     arg_parser.add_argument('--containerCvmfs',
