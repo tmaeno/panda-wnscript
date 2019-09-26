@@ -62,10 +62,13 @@ def singularity_sandbox(source_image=''):
     if 'PILOT_HOME' not in os.environ:
         os.environ['PILOT_HOME'] = os.environ['PWD']
 
+    # Disable cache so we don't even have have twice the files and we don't need to delete it
+    os.environ['SINGULARITY_DISABLE_CACHE'] = '1'
+
     os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
                                                         re.sub('\W+', '_', source_image))
-    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],
-                                                          'cache')
+#    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],
+#                                                          'cache')
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'image')
 
     if not os.path.exists(target_image):
@@ -81,9 +84,9 @@ def singularity_sandbox(source_image=''):
     else:
         logging.debug('Local image {} already exists. Trying it....'.format(target_image))
 
-    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
-        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
-        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+#    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+#        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
+#        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
 
     return target_image
 
@@ -177,11 +180,11 @@ def singularity_container():
                               cmd)
 
     logging.info("====== runcontainer environment ======")
-#    for param in os.environ.keys():
-#        logging.info('{}={}'.format(param,os.environ[param]))
+    if args.debug:
+        for param in os.environ.keys():
+            logging.debug('{}={}'.format(param,os.environ[param]))
     logging.info('Singularity command: {}'.format(singularity_cmd))
     execute(shlex.split(singularity_cmd))
-
 
 def execute(cmd=[]):
 
@@ -195,16 +198,35 @@ def execute(cmd=[]):
             for path in os.environ["PATH"].split(os.pathsep)
         )
 
+    def cmd_path(x):
+        for path in os.environ["PATH"].split(os.pathsep):
+            bin_path=os.path.join(path, x)
+            if os.access(bin_path, os.X_OK):
+                break
+        return bin_path
+
+    def is_user_ns():
+        with open('/proc/sys/user/max_user_namespaces') as fp:
+            ns = int(fp.readline().rstrip())
+        return ns
+
     # I hate the hard coded path but we are going down that route for other things
-    executable = cmd[0]
-    if cmd_exists(executable):
-        logging.info('{} is installed.'.format(executable))
-    elif os.path.exists('/cvmfs/atlas.cern.ch/repo/containers/sw/{}/x86_64-el7/current/bin/{}'.format(executable, executable)):
-        os.environ['PATH'] = '/cvmfs/atlas.cern.ch/repo/containers/sw/{}/x86_64-el7/current/bin:{}'.format(executable, os.environ['PATH'])
-        logging.info('{} is available in CVMFS. Adding to the path.'.format(executable))
+    runtime = cmd[0]
+    bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
+    print(is_user_ns())
+    if is_user_ns() > 0:
+        logging.info('User namespaces is enabled. Will try the runtime {} in CVMFS'.format(runtime))
+        if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
+            os.environ['PATH'] = '{0}:{1}'.format(bin_path, os.environ['PATH'])
+            logging.info('{} is available in CVMFS. Adding to the path.'.format(runtime))
+    elif cmd_exists(runtime):
+        logging.info('{} is in the local PATH.'.format(runtime))
     else:
-        logging.error('{} does not exist in CVMFS either.'.format(executable))
-        sys.exit(cmd_exists(executable))
+        logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
+        sys.exit(cmd_exists(runtime))
+
+    logging.info(subprocess.check_output(['which', runtime]).rstrip())
+    logging.info(subprocess.check_output(['singularity', '--version']))
 
     # Run subprocess print stdout catch stderr in a generic way
     ch = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
@@ -494,6 +516,12 @@ if __name__ == "__main__":
                             action='store_true',
                             default=False,
                             help='Enable debug mode for logging messages')
+
+    # Debug
+    arg_parser.add_argument('--runtime-version',
+                            dest='runtime_version',
+                            default="testing",
+                            help='Enable select the runtime version in CVMFS. Default current')
 
     # User sandbox filename
     arg_parser.add_argument('-a',
