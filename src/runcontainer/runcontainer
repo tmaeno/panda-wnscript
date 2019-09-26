@@ -223,7 +223,7 @@ def execute(cmd=[]):
         logging.info('{} is in the local PATH.'.format(runtime))
     else:
         logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
-        sys.exit(cmd_exists(executable))
+        sys.exit(cmd_exists(runtime))
 
     logging.info(subprocess.check_output(['which', runtime]).rstrip())
     logging.info(subprocess.check_output(['singularity', '--version']))
@@ -520,7 +520,7 @@ if __name__ == "__main__":
     # Debug
     arg_parser.add_argument('--runtime-version',
                             dest='runtime_version',
-                            default="current",
+                            default="testing",
                             help='Enable select the runtime version in CVMFS. Default current')
 
     # User sandbox filename
