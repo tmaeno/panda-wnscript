@@ -38,7 +38,7 @@ import shutil
 import tarfile
 import xml.dom.minidom
 
-VERSION = '1.1.3'
+VERSION = '1.1.4'
 
 
 def main():
@@ -63,12 +63,11 @@ def singularity_sandbox(source_image=''):
         os.environ['PILOT_HOME'] = os.environ['PWD']
 
     # Disable cache so we don't even have have twice the files and we don't need to delete it
-    os.environ['SINGULARITY_DISABLE_CACHE'] = '1'
+    # this doesn't work yet os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
 
     os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
                                                         re.sub('\W+', '_', source_image))
-#    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'],
-#                                                          'cache')
+    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'image')
 
     if not os.path.exists(target_image):
@@ -84,9 +83,9 @@ def singularity_sandbox(source_image=''):
     else:
         logging.debug('Local image {} already exists. Trying it....'.format(target_image))
 
-#    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
-#        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
-#        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
+        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
 
     return target_image
 
