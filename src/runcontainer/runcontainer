@@ -161,7 +161,7 @@ def singularity_container():
 
     pq_data = agis_container_options()
 
-    container_options = pq_data['container_options'] if 'container_options' in pq_data else ''
+    container_options = pq_data['container_options'] if pq_data and pq_data['container_options'] != None else ''
 
     # set the singularity user proxy
     x509_cert_bind = ''
