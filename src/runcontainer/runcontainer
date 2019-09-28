@@ -75,8 +75,8 @@ def singularity_sandbox(source_image=''):
         logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
-        silent = '--debug' if args.debug else '-s'
-        sing_cmd = "singularity {0} build --sandbox {1} {2}".format(silent, target_image, source_image)
+        debug = '--debug' if args.debug else '-s'
+        sing_cmd = "singularity {0} build --sandbox {1} {2}".format(debug, target_image, source_image)
         logging.info("Singularity command: %s", sing_cmd)
         execute(shlex.split(sing_cmd))
     else:
@@ -133,8 +133,8 @@ def singularity_container():
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    silent = '--debug' if args.debug else '-s'
-    singularity_base = 'singularity {} exec '.format(silent)
+    debug = '--debug' if args.debug else '-s'
+    singularity_base = 'singularity {} exec -C'.format(debug)
 
     # Replace input place holders
     command = args.ctr_cmd
@@ -152,7 +152,7 @@ def singularity_container():
     open(file_name, 'w').write(command + '\n')
     os.chmod(file_name, 0o700)
     logging.info("User command: %s", command)
-    pwd = os.environ['PWD']
+    io_dir = '-B {}:{}'.format( os.environ['PWD'],args.ctr_datadir)
     cmd = args.ctr_datadir + '/' + file_name
 
     # If Cvmfs add that to bind_paths
@@ -164,18 +164,14 @@ def singularity_container():
     container_options = pq_data['container_options'] if pq_data and pq_data['container_options'] != None else ''
 
     # set the singularity user proxy
-    x509_cert_bind = ''
-    if args.ctr_x509:# and not re.match('.*certificates',container_options):
-        x509_cert_bind = singularity_user_proxy()
+    x509_cert_bind = singularity_user_proxy() if not args.ctr_x509 else ''
 
     # Compose the command
-    # Need to update when I'll parse queuedata
     logging.debug('Using image: {}'.format(exec_image))
-    singularity_cmd = '{} --pwd {} -B {}:{} {} {} {} {} {}' \
+    singularity_cmd = '{} --pwd {} {} {} {} {} {} {}' \
                       .format(singularity_base,
-                              args.ctr_datadir,
-                              pwd,
-                              args.ctr_datadir,
+                              args.ctr_workdir,
+                              io_dir,
                               cvmfs,
                               x509_cert_bind,
                               container_options,
@@ -516,12 +512,12 @@ if __name__ == "__main__":
                             help='Mount /cvmfs. Default false')
 
     # Container proxy
-    arg_parser.add_argument('--containerX509',
+    arg_parser.add_argument('--noX509',
                             dest='ctr_x509',
                             action='store_true',
                             default=False,
-                            help='Set the X509_USER_PROXY \
-                                  and X509_CA_CERTDIR. Default: false')
+                            help='Unset the X509_USER_PROXY \
+                                  and X509_CA_CERTDIR. Default: true')
 
     # Container environment vars
     arg_parser.add_argument('--containerEnv',
