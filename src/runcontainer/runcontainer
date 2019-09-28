@@ -75,7 +75,7 @@ def singularity_sandbox(source_image=''):
         logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
-        silent = '' if args.debug else '-s'
+        silent = '--debug' if args.debug else '-s'
         sing_cmd = "singularity {0} build --sandbox {1} {2}".format(silent, target_image, source_image)
         logging.info("Singularity command: %s", sing_cmd)
         execute(shlex.split(sing_cmd))
@@ -133,14 +133,8 @@ def singularity_container():
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    singularity_base = 'singularity exec'
-
-    # If Cvmfs add that to bind_paths
-    cvmfs = ''
-    if args.ctr_cvmfs:
-        cvmfs = '-B /cvmfs:/cvmfs'
-
-    logging.debug("Command to run in the container %s", args.ctr_cmd)
+    silent = '--debug' if args.debug else '-s'
+    singularity_base = 'singularity {} exec '.format(silent)
 
     # Replace input place holders
     command = args.ctr_cmd
@@ -148,6 +142,8 @@ def singularity_container():
     for key in sorted(files_map.keys(), reverse=True, key=lambda x: len(x)):
         if key in command:
             command = command.replace('%' + key, files_map[key])
+
+    logging.debug("Command to run in the container %s", args.ctr_cmd)
 
     # Write the command into a script.
     # Makes it easier to handle whatever character
@@ -159,6 +155,10 @@ def singularity_container():
     pwd = os.environ['PWD']
     cmd = args.ctr_datadir + '/' + file_name
 
+    # If Cvmfs add that to bind_paths
+    cvmfs = '-B /cvmfs:/cvmfs' if args.ctr_cvmfs else ''
+
+    # AGIS options
     pq_data = agis_container_options()
 
     container_options = pq_data['container_options'] if pq_data and pq_data['container_options'] != None else ''
@@ -177,8 +177,8 @@ def singularity_container():
                               pwd,
                               args.ctr_datadir,
                               cvmfs,
-                              container_options,
                               x509_cert_bind,
+                              container_options,
                               exec_image,
                               cmd)
 
@@ -221,9 +221,13 @@ def execute(cmd=[]):
                 break
         return bin_path
 
+    # Check if usernamespaces is enabled. Non standard archs like cray
+    # at CSCS don't have max_user_namespaces
     def is_user_ns():
-        with open('/proc/sys/user/max_user_namespaces') as fp:
-            ns = int(fp.readline().rstrip())
+        ns = 0
+        if os.access('/proc/sys/user/max_user_namespaces',os.R_OK):
+            with open('/proc/sys/user/max_user_namespaces') as fp:
+                ns = int(fp.readline().rstrip())
         return ns
 
     # I hate the hard coded path but we are going down that route for other things
