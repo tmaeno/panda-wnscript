@@ -491,21 +491,21 @@ if __name__ == "__main__":
                             help='Write input to a text file')
 
     # Container data directory
-    arg_parser.add_argument('--containerDataDir',
+    arg_parser.add_argument('--datadir',
                             dest='ctr_datadir',
                             default="/ctrdata",
                             help='Change directory where input, output \
                                   and log files should be stored. \
                                   Default: /ctrdata')
     # Container workdir
-    arg_parser.add_argument('--containerWorkDir',
+    arg_parser.add_argument('--workdir',
                             dest='ctr_workdir',
                             default="/ctrdata",
                             help='Change workdir inside the container. \
                                   Default: /ctrdata')
 
     # Container cvmfs
-    arg_parser.add_argument('--containerCvmfs',
+    arg_parser.add_argument('--cvmfs',
                             dest='ctr_cvmfs',
                             action='store_true',
                             default=False,
@@ -520,7 +520,7 @@ if __name__ == "__main__":
                                   and X509_CA_CERTDIR. Default: true')
 
     # Container environment vars
-    arg_parser.add_argument('--containerEnv',
+    arg_parser.add_argument('--env',
                             dest='ctr_env',
                             default="",
                             help='Container environment variables')
