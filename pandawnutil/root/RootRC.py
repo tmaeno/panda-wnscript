@@ -33,7 +33,8 @@ def customizeRootRC(dirName,numProofWokers):
     rcFile = open(rootRcFile,'w')
     for line in rootConfigs:
         rcFile.write(line+'\n')
-    for changeKey,changeValue in changes.iteritems():
+    for changeKey in changes:
+        changeValue = changes[changeKey]
         rcFile.write('%s: %s\n' % (changeKey,changeValue))
     rcFile.close()
     return

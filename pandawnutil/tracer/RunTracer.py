@@ -1,13 +1,15 @@
 import os
 import os.path
-import commands
+import uuid
 import subprocess
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output
 
 if os.path.isabs(__file__):
     modFullName = __file__
 else:
     modFullName = os.getcwd() + '/' + __file__
 modFullPath = os.path.dirname(modFullName)    
+
 
 class RunTracer:
     # constructor
@@ -21,13 +23,13 @@ class RunTracer:
 
     # make wrapper
     def make(self):
-        print "===== make PandaTracer ====="
+        print ("===== make PandaTracer =====")
         # create lib base dir
         if self.debugFlag:
             self.libBaseDir = os.getcwd()
         else:
-            self.libBaseDir = os.getcwd() + '/' + commands.getoutput('uuidgen 2>/dev/null')
-            commands.getoutput('rm -rf %s' % self.libBaseDir)
+            self.libBaseDir = os.getcwd() + '/' + str(uuid.uuid4())
+            commands_get_status_output('rm -rf %s' % self.libBaseDir)
             os.makedirs(self.libBaseDir)
         # set output filename
         self.logName = self.libBaseDir + '/pandatracerlog.txt'
@@ -37,7 +39,8 @@ class RunTracer:
                    (self.libBaseDir,self.wrapperName))
         outH.close()
         # make lib and lib64
-        for archOpt,archLib in self.archOptMap.iteritems():
+        for archOpt in self.archOptMap:
+            archLib = self.archOptMap[archOpt]
             step1 = 'gcc -%s -I. -fPIC -c -Wall %s/%s.c -o %s.o' % \
                     (archOpt,modFullPath,self.wrapperName,self.wrapperName)
             step2 = 'gcc -%s -shared %s.o -ldl -lstdc++ -o %s/%s/%s.so' % \
@@ -55,31 +58,31 @@ class RunTracer:
                                       stderr=subprocess.PIPE)
             out, err = p.communicate()
             if p.returncode != 0:
-                print " com : {0} failed with {1}".format(step1, err)
+                print (" com : {0} failed with {1}".format(step1, err))
                 isFailed = True
             else:
                 p = subprocess.Popen(step2.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    print " com : {0} failed with {1}".format(step2, err)
+                    print (" com : {0} failed with {1}".format(step2, err))
                     isFailed = True
             # make dummy if failed
             if isFailed:        
-                print "  %s failed" % archOpt
+                print ("  %s failed" % archOpt)
                 p = subprocess.Popen(stepd.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    print " com : {0} failed with {1}".format(stepd, err)
-                    print "WARNING: %s is not supported" % archOpt
+                    print (" com : {0} failed with {1}".format(stepd, err))
+                    print ("WARNING: %s is not supported" % archOpt)
                 else:
-                    print "  %s uses dummy" % archOpt
+                    print ("  %s uses dummy" % archOpt)
             else:
-                print "  %s succeeded" % archOpt
+                print ("  %s succeeded" % archOpt)
         # log name
-        commands.getoutput('touch %s' % self.getLogName())
-        print "Log location -> %s" % self.getLogName()
+        commands_get_status_output('touch %s' % self.getLogName())
+        print ("Log location -> %s" % self.getLogName())
         # return
         return
 

@@ -1,5 +1,9 @@
 import sys
 import logging
+try:
+    from importlib import reload
+except Exception:
+    pass
 
 rootLog = None
 

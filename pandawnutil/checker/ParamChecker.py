@@ -13,10 +13,10 @@ def checkSourceHost(sourceURL):
                               'voatlas248.cern.ch','voatlas249.cern.ch','voatlas250.cern.ch',
                               'voatlas251.cern.ch','voatlas252.cern.ch','voatlas253.cern.ch',
                               'voatlas254.cern.ch','voatlas255.cern.ch']:
-            print 'ERROR: un-trusted host %s for input sandbox' % sourceHost
+            print ('ERROR: un-trusted host %s for input sandbox' % sourceHost)
             return False
         # OK
         return True
     except:
-        print 'ERROR: cannot get HOST from sourceURL=%s' % sourceURL
+        print ('ERROR: cannot get HOST from sourceURL=%s' % sourceURL)
         return False

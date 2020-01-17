@@ -34,25 +34,6 @@ for TARGET in "runGen"
   echo
 done
 
-# with CVMFS
-for TARGET in "preEvtPick" "preGoodRunList"
-  do
-  echo "Start " $TARGET  
-  EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
-  EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
-  rm -f $TMPZIP
-  # include utils
-  zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
-  # script main
-  cd $EXESRCDIR
-  zip -o $TMPZIP -r . -i "*.py" "panda-wn_ext_apps"
-  cd $WORKDIR
-  # make self-exracting executable
-  cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME
-  chmod +x $EXENAME
-  echo
-done
-
 # include non-python files
 for TARGET in "runMerge"
   do

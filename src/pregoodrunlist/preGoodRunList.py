@@ -3,15 +3,13 @@
 "exec" "python" "-u" "$0" "$@"
 
 import os
-import re
 import sys
-import time
 import optparse
-import commands
 import traceback
 
 from pandawnutil.wnlogger import PLogger
 from pandawnutil.wnmisc import PsubUtils
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
 
 # error code
 EC_MissingArg  = 10
@@ -52,8 +50,8 @@ tmpLog.info('start')
 options,args = optP.parse_args()
 if options.verbose:
     tmpLog.debug("=== parameters ===")
-    print options
-    print
+    print (options)
+    print('')
 
 # save current dir
 currentDir = os.getcwd()
@@ -62,34 +60,19 @@ tmpLog.info("Running in %s " % currentDir)
 
 # crate work dir
 workDir = currentDir+"/workDir"
-commands.getoutput('rm -rf %s' % workDir)
+commands_get_status_output('rm -rf %s' % workDir)
 os.makedirs(workDir)
 os.chdir(workDir)
 
 # get run/event list
-output = commands.getoutput('wget -h')
-wgetCommand = 'wget'
-for line in output.split('\n'):
-    if re.search('--no-check-certificate',line) != None:
-        wgetCommand = 'wget --no-check-certificate'
-        break
-com = '%s %s/cache/%s.gz' % (wgetCommand,
-                             options.sourceURL,
-                             options.goodRunListXML)
-tmpLog.info("getting GRL with %s" % com)
+url = '%s/cache/%s.gz' % (options.sourceURL, options.goodRunListXML)
+tmpLog.info("getting GRL from %s" % url)
 
-nTry = 3
-for iTry in range(nTry):
-    print 'Try : %s' % iTry
-    status,output = commands.getstatusoutput(com)
-    print status,output
-    if status == 0:
-        break
-    if iTry+1 == nTry:
-        tmpLog.error("could not get GRL from panda server")
-        sys.exit(EC_WGET)
-    time.sleep(30)    
-print commands.getoutput('gunzip %s.gz' % options.goodRunListXML)
+tmpStatus, tmpOut = get_file_via_http(full_url=url)
+if not tmpStatus:
+    tmpLog.error(tmpOut)
+    sys.exit(EC_WGET)
+print (commands_get_status_output('gunzip %s.gz' % options.goodRunListXML)[-1])
 
 # convert run/evt list to dataset/LFN list
 try:
@@ -106,21 +89,20 @@ try:
         tmpLog.error("no datasets were extracted from AMI using %s" % options.goodRunListXML)
         sys.exit(EC_GRL)
     status = 0
-except:
-    errtype,errvalue = sys.exc_info()[:2]
-    tmpLog.error("failed to convert GRL with %s %s %s" % (errtype,errvalue,traceback.format_exc()))
+except Exception as e:
+    tmpLog.error("failed to convert GRL with %s %s" % (str(e),traceback.format_exc()))
     sys.exit(EC_GRL)
 
-print
+print ('')
 
 tmpLog.debug("=== GRL output ===")
-print epDs
-print epLFNs
-print
+print (epDs)
+print (epLFNs)
+print ('')
 
 # create empty PoolFileCatalog.xml if it doesn't exist
 pfcName = 'PoolFileCatalog.xml'
-pfcSt,pfcOut = commands.getstatusoutput('ls %s' % pfcName)
+pfcSt,pfcOut = commands_get_status_output('ls %s' % pfcName)
 if pfcSt != 0:
     pfcFile = open(pfcName,'w')
     pfcFile.write("""<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
@@ -133,7 +115,7 @@ if pfcSt != 0:
     pfcFile.close()
 
 # copy PFC
-commands.getoutput('mv %s %s' % (pfcName,currentDir))
+commands_get_status_output('mv %s %s' % (pfcName,currentDir))
 
 # go back to current dir
 os.chdir(currentDir)
@@ -143,19 +125,19 @@ metaDict = {}
 metaDict['%%INDS%%'] = epDs
 metaDict['%%INLFNLIST%%'] = epLFNs
 metaFileName = 'metadata.xml'
-commands.getoutput('rm -rf %s' % metaFileName)
+commands_get_status_output('rm -rf %s' % metaFileName)
 mFH = open(metaFileName,'w')
 import json
 json.dump(metaDict,mFH)
 mFH.close()
 
 tmpLog.info('dump')
-print commands.getoutput('pwd')
-print commands.getoutput('ls -l')
+print (commands_get_status_output('pwd')[-1])
+print (commands_get_status_output('ls -l')[-1])
 
 # remove work dir
 if not options.debug:
-    commands.getoutput('rm -rf %s' % workDir)
+    commands_get_status_output('rm -rf %s' % workDir)
 
 # return
 if status:

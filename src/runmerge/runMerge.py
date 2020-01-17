@@ -3,16 +3,17 @@
 import re
 import sys
 import os
+import ast
 import glob
 import os.path
 import getopt
-import commands
 import shutil
 import tarfile
 import xml.dom.minidom
 import traceback
-import pickle
 import urllib
+import uuid
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output
 
 ## error codes
 EC_OK = 0
@@ -64,11 +65,11 @@ def __exec__(cmd, mergelog=False):
     '''
     wrapper of making system call
     '''
-    print 'dir : %s' % os.getcwd()
-    print 'exec: %s' % cmd
-    s,o = commands.getstatusoutput(cmd)
-    print 'status: %s' % (s % 255)
-    print 'stdout:\n%s' % o
+    print ('dir : %s' % os.getcwd())
+    print ('exec: %s' % cmd)
+    s,o = commands_get_status_output(cmd)
+    print ('status: %s' % (s % 255))
+    print ('stdout:\n%s' % o)
     return s,o
 
 def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
@@ -78,9 +79,9 @@ def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
     # collect GUIDs from PoolFileCatalog
     turls = {}
     try:
-        print "===== PFC from pilot ====="
+        print ("===== PFC from pilot =====")
         tmpPcFile = open(PFC)
-        print tmpPcFile.read()
+        print (tmpPcFile.read())
         tmpPcFile.close()
         # parse XML
         root  = xml.dom.minidom.parse(PFC)
@@ -96,231 +97,11 @@ def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
             lfn = pfn.split('/')[-1]
             # append
             turls[id] = pfn
-    except:
-        type, value, traceBack = sys.exc_info()
-        print 'ERROR : Failed to collect GUIDs : %s - %s' % (type,value)
+    except Exception as e:
+        print ('ERROR : Failed to collect GUIDs : %s' % str(e))
 
     return turls
 
-def __getPFNsFromLRC__(urlLRC,items,isGUID=True,old_prefix='',new_prefix=''):
-    '''
-    resolving PFNs from LRC
-    '''
-
-    # old prefix for regex
-    old_prefix_re = old_prefix.replace('?','\?')
-    pfnMap = {}
-    if len(items)>0:
-        # get PoolFileCatalog
-        iITEM = 0
-        strITEMs = ''
-        for item in items:
-            iITEM += 1
-            # make argument
-            strITEMs += '%s ' % item
-            if iITEM % 35 == 0 or iITEM == len(items):
-                # get PoolFileCatalog
-                strITEMs = strITEMs.rstrip()
-                if isGUID:
-                    data = {'guids':strITEMs}
-                else:
-                    data = {'lfns':strITEMs}
-                # avoid too long argument
-                strITEMs = ''
-                # GET
-                url = '%s/lrc/PoolFileCatalog?%s' % (urlLRC,urllib.urlencode(data))
-                req = urllib2.Request(url)
-                fd = urllib2.urlopen(req)
-                out = fd.read()
-                if out.startswith('Error'):
-                    continue
-                if not out.startswith('<?xml'):
-                    continue
-                # get SURLs
-                try:
-                    root  = xml.dom.minidom.parseString(out)
-                    files = root.getElementsByTagName('File')
-                    for file in files:
-                        # get ID
-                        id = str(file.getAttribute('ID'))
-                        # get PFN node
-                        physical = file.getElementsByTagName('physical')[0]
-                        pfnNode  = physical.getElementsByTagName('pfn')[0]
-                        # convert UTF8 to Raw
-                        pfn = str(pfnNode.getAttribute('name'))
-                        # remove :8443/srm/managerv1?SFN=
-                        pfn = re.sub(':8443/srm/managerv1\?SFN=','',pfn)
-                        if old_prefix=='':
-                            # remove protocol and host
-                            pfn = re.sub('^[^:]+://[^/]+','',pfn)
-                            # remove redundant /
-                            pfn = re.sub('^//','/',pfn)
-                            # put dcache if /pnfs
-                            if pfn.startswith('/pnfs'):
-                                pfn = 'dcache:%s' % pfn
-                        else:
-                            # check matching
-                            if re.search(old_prefix_re,pfn) == None:
-                                continue
-                            # replace prefix
-                            pfn = re.sub(old_prefix_re,new_prefix,pfn)
-                        # append
-                        pfnMap[id] = pfn
-                except:
-                    pass
-    return pfnMap
-
-def __getPFNsFromLFC__(lfcHost, items, envvarFile='', old_prefix='', new_prefix=''):
-    '''
-    resolving PFNs from LFC
-    '''
-
-    pfnMap = {}
-
-    # get PFNs from LFC
-    lfcPy = '%s/%s.py' % (os.getcwd(),commands.getoutput('uuidgen 2>/dev/null'))
-    lfcOutPi = '%s/lfc.%s' % (os.getcwd(),commands.getoutput('uuidgen 2>/dev/null'))
-    lfcPyFile = open(lfcPy,'w')
-
-    lfcPyFile.write(__code_getPFNsFromLFC__() + ("""
-st,out= _getPFNsFromLFC ('%s',%s,old_prefix='%s',new_prefix='%s')
-outPickFile = open('%s','w')
-pickle.dump(out,outPickFile)
-outPickFile.close()
-sys.exit(st)
-""" % (lfcHost,items,old_prefix,new_prefix,lfcOutPi)))
-
-    lfcPyFile.close()
-    
-    # run LFC access in grid runtime
-    lfcSh = '%s.sh' % commands.getoutput('uuidgen 2>/dev/null')
-    if envvarFile != '':
-        commands.getoutput('cat %s > %s' % (envvarFile,lfcSh))
-        
-    # check LFC module in grid runtime
-    print "->check LFC.py"
-    lfcS,lfcO = __exec__('python -c "import lfc"')
-    print lfcS
-    #print lfcO
-    if lfcS == 0:
-        commands.getoutput('echo "python %s" >> %s' % (lfcPy,lfcSh))
-    else:
-        # use system python
-        print "->use /usr/bin/python"
-        commands.getoutput('echo "/usr/bin/python %s" >> %s' % (lfcPy,lfcSh))
-        
-    commands.getoutput('chmod +x %s' % lfcSh)
-    tmpSt,tmpOut = __exec__('./%s' % lfcSh)
-    print tmpSt
-    print tmpOut
-    # error check
-    if re.search('ERROR : LFC access failure',tmpOut) != None:
-        sys.exit(EC_LFC)
-        
-    if tmpSt == 0:
-        lfcOutPiFile = open(lfcOutPi)
-        pfnMap = pickle.load(lfcOutPiFile)
-        lfcOutPiFile.close()
-
-    return pfnMap
-
-def __code_getPFNsFromLFC__():
-    '''
-    generating python function for resolving PFNs from LFC
-    
-    PS: Not sure why it cannot be a normal python function in this code ... just copied from runAthena
-    '''
-
-    lfcCommand = """
-import os
-import re
-import sys
-import time
-import pickle
-
-# get PFNs from LFC
-def _getPFNsFromLFC (lfc_host,items,old_prefix='',new_prefix=''):
-    retVal = 0
-    pfnMap = {}
-    # old prefix for regex
-    old_prefix_re = old_prefix.replace('?','\?')
-    # import lfc
-    try:
-        import lfc
-    except:
-        print "ERROR : cound not import lfc"
-        retVal = 1
-        return retVal,pfnMap
-    # set LFC HOST
-    os.environ['LFC_HOST'] = lfc_host
-    # check bulk-operation
-    if not hasattr(lfc,'lfc_getreplicas'):
-        print "ERROR : bulk-ops is unsupported"
-        retVal = 2
-        return retVal,pfnMap
-    frList = []
-    # set nGUID for bulk-ops
-    nGUID = 100
-    iGUID = 0
-    mapLFN = {}
-    listGUID = []
-    # loop over all items
-    for item in items:
-        iGUID += 1
-        listGUID.append(item)
-        if iGUID % nGUID == 0 or iGUID == len(items):
-            # get replica
-            nTry = 5
-            for iTry in range(nTry):
-                ret,resList = lfc.lfc_getreplicas(listGUID,'')
-                if ret == 0 or iTry+1 == nTry:
-                    break
-                print "sleep due to LFC error"
-                time.sleep(60)
-            if ret != 0:
-                err_num = lfc.cvar.serrno
-                err_string = lfc.sstrerror(err_num)
-                print "ERROR : LFC access failure - %s" % err_string
-            else:
-                for fr in resList:
-                    if fr != None and ((not hasattr(fr,'errcode')) or \
-                                       (hasattr(fr,'errcode') and fr.errcode == 0)):
-                        print "replica found for %s" % fr.guid
-                        # skip empty or corrupted SFN
-                        print fr.sfn
-                        if fr.sfn == '' or re.search('[^\w\./\-\+\?:&=]',fr.sfn) != None:
-                            if globalVerbose:
-                                print "WARNING : wrong SFN '%s'" % fr.sfn
-                            continue
-                        # check matching
-                        if old_prefix != '':
-                            if re.search(old_prefix_re,fr.sfn) == None:
-                                continue
-                        guid = fr.guid
-                        # use first one
-                        if pfnMap.has_key(guid):
-                            onDiskFlag = False
-                            for diskPath in ['/MCDISK/','/BNLT0D1/','/atlasmcdisk/','/atlasdatadisk/']:
-                                if re.search(diskPath,fr.sfn) != None:
-                                    onDiskFlag = True
-                                    break
-                            if not onDiskFlag:
-                                continue
-                            print "use disk replica"
-                        if old_prefix == '':
-                            # remove protocol and host
-                            pfn = re.sub('[^:]+://[^/]+','',fr.sfn)
-                            pfn = new_prefix + pfn
-                        else:
-                            pfn = re.sub(old_prefix_re,new_prefix,fr.sfn)
-                        # assign
-                        pfnMap[guid] = pfn
-            # reset
-            listGUID = []
-    # return
-    return retVal,pfnMap
-"""
-    return lfcCommand
 
 def __cmd_setup_env__(workDir, rootVer):
 
@@ -329,8 +110,8 @@ def __cmd_setup_env__(workDir, rootVer):
 
     if useAthenaPackages:
         if not useCMake:
-            tmpDir = '%s/%s/cmt' % (workDir,commands.getoutput('uuidgen 2>/dev/null'))
-            print "Making tmpDir",tmpDir
+            tmpDir = '%s/%s/cmt' % (workDir, str(uuid.uuid4()))
+            print ("Making tmpDir",tmpDir)
             os.makedirs(tmpDir)
             # create requirements
             oFile = open(tmpDir+'/requirements','w')
@@ -341,18 +122,12 @@ def __cmd_setup_env__(workDir, rootVer):
             setupEnv  = 'export CMTPATH=%s:$CMTPATH; ' % workDir
             setupEnv += 'cd %s; cat requirements; cmt config; source ./setup.sh; cd -; ' % tmpDir
         else:
-            if 'AtlasOffline_VERSION' in os.environ:
-                athenaVer = os.environ['AtlasOffline_VERSION']
-                platform = os.environ['AtlasOffline_PLATFORM']
-            else:
-                athenaVer = os.environ[os.environ['AtlasProject']+'_VERSION']
-                platform = os.environ[os.environ['AtlasProject']+'_PLATFORM']
             cmakeSetupDir = 'usr/*/*/InstallArea/*'
-            print "CMake setup dir : {0}".format(cmakeSetupDir)
+            print ("CMake setup dir : {0}".format(cmakeSetupDir))
             if len(glob.glob(cmakeSetupDir)) > 0:
                 setupEnv = 'source {0}/setup.sh;'.format(cmakeSetupDir)
             else:
-                print 'WARNING: CMake setup dir not found'
+                print ('WARNING: CMake setup dir not found')
                 setupEnv = ''
 
     # setup root
@@ -376,11 +151,11 @@ def __cmd_setup_env__(workDir, rootVer):
     # TestArea
     setupEnv += "export TestArea=%s; " % workDir
 
-    print "=== setup command ==="
-    print setupEnv
-    print
-    print "=== env ==="
-    print commands.getoutput(setupEnv+'env')
+    print ("=== setup command ===")
+    print (setupEnv)
+    print ('')
+    print ("=== env ===")
+    print (commands_get_status_output(setupEnv+'env')[-1])
 
     return setupEnv
 
@@ -388,7 +163,7 @@ def __fetch_toolbox__(url, maxRetry=3):
     '''
     getting the runMerge toolbox containing executables, librarys to run merging programs
     '''
-    print '=== getting sandbox ==='
+    print ('=== getting sandbox ===')
     ick = False
 
     cmd = 'wget --no-check-certificate -t %d --waitretry=60 %s' % (maxRetry, url)
@@ -397,8 +172,8 @@ def __fetch_toolbox__(url, maxRetry=3):
     if rc == 0:
         ick = True
     else:
-        print 'ERROR: wget %s error: %s' % (url, output)
-    print
+        print ('ERROR: wget %s error: %s' % (url, output))
+    print ('')
     return ick
 
 def __cat_file__(fpath):
@@ -406,14 +181,14 @@ def __cat_file__(fpath):
     print the text content of given fpath to stdout
     '''
 
-    print '=== cat %s ===' % fpath
+    print ('=== cat %s ===' % fpath)
 
     if os.path.exists(fpath):
 
         f = open(fpath,'r')
 
         for l in map( lambda x:x.strip(), f.readlines()):
-            print l
+            print (l)
 
         f.close()
 
@@ -424,7 +199,7 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', useFileStager=False):
 
     EC = 0
 
-    print 'merging with hmerge ...'
+    print ('merging with hmerge ...')
 
     ftools = ['hmerge','fs_copy']
 
@@ -450,7 +225,7 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', useFileStager=False):
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
-        print "ERROR: hmerge returns error code %d" % rc
+        print ("ERROR: hmerge returns error code %d" % rc)
         EC = EC_MERGE_ERROR
 
     return EC
@@ -462,7 +237,7 @@ def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
     EC = 0
 
-    print 'merging with tgz ...'
+    print ('merging with tgz ...')
 
     o_tgz = None
 
@@ -518,7 +293,7 @@ def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
             for m in tarfile.open(outputFile, 'r').getmembers():
                 f_log.write('%s\n' % m.name)
         else:
-            print "ERROR: tarfile %s not created properly" % outputFile
+            print ("ERROR: tarfile %s not created properly" % outputFile)
             EC = EC_MERGE_ERROR
 
     except Exception:
@@ -545,13 +320,13 @@ def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
     EC = 0
 
-    print 'merging with Merging_trf.py from PATJobTransforms ...'
+    print ('merging with Merging_trf.py from PATJobTransforms ...')
 
     cmd = cmdEnvSetup + ' get_files -scripts Merging_trf.py'
     rc, output = __exec__(cmd)
 
     if rc != 0:
-        print output
+        print (output)
         EC = EC_MERGE_SCRIPTNOFOUND
 
     else:
@@ -573,7 +348,7 @@ def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
         rc,output = __exec__(cmd, mergelog=True)
 
         if rc != 0:
-            print "ERROR: Merging_trf returns error code %d" % rc
+            print ("ERROR: Merging_trf returns error code %d" % rc)
             EC = EC_MERGE_ERROR
 
     return EC
@@ -594,7 +369,7 @@ def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager=F
     else:
         userCmd_new = __replace_IN_OUT_arguments__( userCmd, inputFiles, outputFile )
 
-    print 'merging with user command %s ...' % userCmd_new
+    print ('merging with user command %s ...' % userCmd_new)
 
     cmd  = cmdEnvSetup;
 
@@ -604,7 +379,7 @@ def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager=F
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
-        print "ERROR: user merging command %s returns error code %d" % (userCmd_new, rc)
+        print ("ERROR: user merging command %s returns error code %d" % (userCmd_new, rc))
         EC = EC_MERGE_ERROR
 
     return EC
@@ -699,7 +474,6 @@ if __name__ == "__main__":
     writeInputToTxt = ''
     rootVer   = ''
     runDir    = '.'
-    mexec     = ''
     useRootCore = False
     useCMake = False
 
@@ -716,7 +490,7 @@ if __name__ == "__main__":
     opts = None
     args = None
 
-    print sys.argv
+    print (sys.argv)
 
     try:
         opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:t:f:",
@@ -730,8 +504,8 @@ if __name__ == "__main__":
                                     "skipInputByRetry=","writeInputToTxt=",
                                     "rootVer=","enable-jem","jem-config=","useCMake"
                                     ])
-    except getopt.GetoptError, err:
-        print '%s' % str(err)
+    except getopt.GetoptError as err:
+        print (str(err))
         __usage__()
         sys.exit(0)
         
@@ -745,18 +519,17 @@ if __name__ == "__main__":
         if o == "-p":
             jobParams=urllib.unquote(a)
         if o == "-i":
-            exec "inputFiles="+a
+            inputFiles = ast.literal_eval(a)
         if o == "-f":
-            exec "inputList="+a
+            inputList = ast.literal_eval(a)
         if o == "-o":
-#            exec "outputFiles="+a
             outputFile = a
         if o == "-t":
             inputType = a
         if o == "--debug":
             debugFlag = True
         if o == "--inputGUIDs":
-            exec "inputGUIDs="+a
+            inputGUIDs = ast.literal_eval(a)
         if o == "--oldPrefix":
             oldPrefix = a
         if o == "--newPrefix":
@@ -770,7 +543,7 @@ if __name__ == "__main__":
         if o == "--sourceURL":
             sourceURL = a
         if o == "--inMap":
-            exec "inMap="+a
+            inMap = ast.literal_eval(a)
         if o == "-a":
             archiveJobO = a
         if o == "--useAthenaPackages":
@@ -804,43 +577,42 @@ if __name__ == "__main__":
 
     # dump parameter
     try:
-        print "=== parameters ==="
-        print "libraries",libraries
-        print "runDir",runDir
-        print "jobParams",jobParams
-        print "inputFiles",inputFiles
-        print "inputList",inputList
-        print "inputType",inputType
-        print "mexec",mexec
-        print "outputFile",outputFile
-        print "inputGUIDs",inputGUIDs
-        print "oldPrefix",oldPrefix
-        print "newPrefix",newPrefix
-        print "directIn",directIn
-        print "usePFCTurl",usePFCTurl
-        print "lfcHost",lfcHost
-        print "debugFlag",debugFlag
-        print "liveLog",liveLog
-        print "sourceURL",sourceURL
-        print "inMap",inMap
-        print "useAthenaPackages",useAthenaPackages
-        print "archiveJobO",archiveJobO
-        print "dbrFile",dbrFile
-        print "dbrRun",dbrRun
-        print "notExpandDBR",notExpandDBR
-        print "libTgz",libTgz
-        print "parentDS",parentDS
-        print "parentContainer",parentContainer
-        print "outputDS",outputDS
-        print "skipInputByRetry",skipInputByRetry
-        print "writeInputToTxt",writeInputToTxt
-        print "rootVer",rootVer
-        print "useRootCore",useRootCore
-        print "useCMake",useCMake
-        print "==================="
-    except:
-        type, value, traceBack = sys.exc_info()
-        print 'ERROR: missing parameters : %s - %s' % (type,value)
+        print ("=== parameters ===")
+        print ("libraries",libraries)
+        print ("runDir",runDir)
+        print ("jobParams",jobParams)
+        print ("inputFiles",inputFiles)
+        print ("inputList",inputList)
+        print ("inputType",inputType)
+        print ("mexec",mexec)
+        print ("outputFile",outputFile)
+        print ("inputGUIDs",inputGUIDs)
+        print ("oldPrefix",oldPrefix)
+        print ("newPrefix",newPrefix)
+        print ("directIn",directIn)
+        print ("usePFCTurl",usePFCTurl)
+        print ("lfcHost",lfcHost)
+        print ("debugFlag",debugFlag)
+        print ("liveLog",liveLog)
+        print ("sourceURL",sourceURL)
+        print ("inMap",inMap)
+        print ("useAthenaPackages",useAthenaPackages)
+        print ("archiveJobO",archiveJobO)
+        print ("dbrFile",dbrFile)
+        print ("dbrRun",dbrRun)
+        print ("notExpandDBR",notExpandDBR)
+        print ("libTgz",libTgz)
+        print ("parentDS",parentDS)
+        print ("parentContainer",parentContainer)
+        print ("outputDS",outputDS)
+        print ("skipInputByRetry",skipInputByRetry)
+        print ("writeInputToTxt",writeInputToTxt)
+        print ("rootVer",rootVer)
+        print ("useRootCore",useRootCore)
+        print ("useCMake",useCMake)
+        print ("===================")
+    except Exception as e:
+        print ('ERROR: missing parameters : %s' % str(e))
         sys.exit(EC_MissingArg)
 
     ## checking parameters
@@ -865,22 +637,15 @@ if __name__ == "__main__":
     """
     ## parsing PoolFileCatalog.xml produced by pilot
     turlsPFC = __resolvePoolFileCatalog__(PFC="PoolFileCatalog.xml")
-    print turlsPFC
+    print (turlsPFC)
 
     ## getting TURLs for direct I/O
     directPFNs = {}
     if directIn:
-        if usePFCTurl:
-            # Use the TURLs from PoolFileCatalog.xml created by pilot
-            print "===== GUIDs and TURLs in PFC ====="
-            print turlsPFC
-            directTmp = turlsPFC
-        else:
-            if lfcHost != '':
-                directTmp = __getPFNsFromLFC__(lfcHost, inputGUIDs, old_prefix=oldPrefix, new_prefix=newPrefix)
-            else:
-                directTmp = __getPFNsFromLRC__(urlLRC, inputFiles, isGUID=False, old_prefix=oldPrefix, new_prefix=newPrefix)
-
+        # Use the TURLs from PoolFileCatalog.xml created by pilot
+        print ("===== GUIDs and TURLs in PFC =====")
+        print (turlsPFC)
+        directTmp = turlsPFC
         # collect LFNs
         for id in directTmp.keys():
             lfn = directTmp[id].split('/')[-1]
@@ -888,7 +653,7 @@ if __name__ == "__main__":
             lfn = re.sub('^([^:]+:)','', lfn)
             directPFNs[lfn] = directTmp[id]
 
-        print directPFNs
+        print (directPFNs)
 
     # save current dir
     currentDir = os.getcwd()
@@ -898,11 +663,12 @@ if __name__ == "__main__":
     if archiveJobO != '':
         tmpStat = __fetch_toolbox__('%s/cache/%s' % (sourceURL,archiveJobO))
         if not tmpStat:
-            print 'ERROR : failed to download %s' % archiveJobO
+            print ('ERROR : failed to download %s' % archiveJobO)
             sys.exit(EC_MERGE_ERROR)
     
     ## create and change to workdir
-    print "Running in",currentDir
+    print ('')
+    print ("Running in %s " % currentDir)
     workDir = os.path.join(currentDir, 'workDir')
     shutil.rmtree(workDir, ignore_errors=True)
     os.makedirs(workDir)
@@ -918,29 +684,29 @@ if __name__ == "__main__":
         if lib == '':
             pass
         elif lib.startswith('/'):
-            print commands.getoutput('tar xvfzm %s' % lib)
+            print (commands_get_status_output('tar xvfzm %s' % lib)[-1])
         else:
-            print commands.getoutput('tar xvfzm %s/%s' % (currentDir,lib))
+            print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,lib))[-1])
 
     ## compose athena/root environment setup command
     cmdEnvSetup = __cmd_setup_env__(workDir, rootVer)
 
     ## create and change to rundir
-    commands.getoutput('mkdir -p %s' % runDir)
+    commands_get_status_output('mkdir -p %s' % runDir)
     os.chdir(runDir)
 
     # loop over all args
     EC = EC_OK
     outputFiles = []
-    print
-    print "===== into main loop ===="
-    print
+    print ('')
+    print ("===== into main loop ====")
+    print ('')
     for tmpArg in args:
         # option appended after args
         try:
             if tmpArg.startswith('-'):
-                print
-                print "escape since non arg found %s" % tmpArg
+                print ('')
+                print ("escape since non arg found %s" % tmpArg)
                 break
         except:
             pass
@@ -950,23 +716,22 @@ if __name__ == "__main__":
             continue
         inputFiles = tmpInputs.split(',')
         inputType = __getMergeType__(inputFiles,mexec)
-        print
-        print ">>> start new chunk <<<"
-        print "=== params ==="
-        print 'inputFiles',inputFiles
-        print 'outputFile',outputFile
-        print 'inputType',inputType
+        print ('')
+        print (">>> start new chunk <<<")
+        print ("=== params ===")
+        print ('inputFiles',inputFiles)
+        print ('outputFile',outputFile)
+        print ('inputType',inputType)
         ## checking input file list and creating new input file list according to the IO type
         if inputFiles != []:
-            print "=== check input files ==="
+            print ("=== check input files ===")
             newInputs = []
             inputFileMap = {}
-
             for inputFile in inputFiles:
                 # direct reading
                 foundFlag = False
                 if directIn:
-                    if directPFNs.has_key(inputFile):
+                    if inputFile in directPFNs:
                         newInputs.append(directPFNs[inputFile])
                         foundFlag = True
                         inputFileMap[inputFile] = directPFNs[inputFile]
@@ -978,28 +743,28 @@ if __name__ == "__main__":
                         foundFlag = True
                         inputFileMap[inputFile] = inputFile
                 if not foundFlag:
-                    print '%s not exist' % inputFile
+                    print ('%s not exist' % inputFile)
 
             inputFiles = newInputs
             if len(inputFiles) == 0:
-                print 'ERROR : No input file is available'
+                print ('ERROR : No input file is available')
                 sys.exit(EC_NoInput)
-            print "=== new inputFiles ==="
-            print inputFiles
-        print "=== run merging ==="
+            print ("=== new inputFiles ===")
+            print (inputFiles)
+        print ("=== run merging ===")
         ## run merging
         EC = __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup=cmdEnvSetup, userCmd=mexec, useFileStager=useFileStager)
         if EC != EC_OK:
-            print "run_merge failed with %s" % EC
+            print ("run_merge failed with %s" % EC)
             break
-        print "run_merge exited with %s" % EC
-        print
+        print ("run_merge exited with %s" % EC)
+        print ('')
         outputFiles.append(outputFile)
 
-    print
-    print "=== ls %s ===" % runDir
-    print commands.getoutput('ls -l')
-    print
+    print ('')
+    print ("=== ls %s ===" % runDir)
+    print (commands_get_status_output('ls -l')[-1])
+    print ('')
 
     ## prepare output
     pfcName = 'PoolFileCatalog.xml'
@@ -1009,13 +774,13 @@ if __name__ == "__main__":
             ## checking the availability of the output file
             if not os.path.exists(outputFile):
 
-                print 'ERROR: merging process finished; but output not found: %s' % outputFile
+                print ('ERROR: merging process finished; but output not found: %s' % outputFile)
 
                 EC = EC_OFILE_UNAVAILABLE
 
             else:
                 # copy results
-                commands.getoutput('mv %s %s' % (outputFile, currentDir))
+                commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 
     ## create empty PoolFileCatalog.xml file if it's not available
     if not os.path.exists(pfcName):
@@ -1030,7 +795,7 @@ if __name__ == "__main__":
         pfcFile.close()
 
     # copy PFC
-    commands.getoutput('mv %s %s' % (pfcName,currentDir))
+    commands_get_status_output('mv %s %s' % (pfcName,currentDir))
 
     # copy all log files from merging program
     __exec__("cp *.log %s" % currentDir)
@@ -1039,11 +804,11 @@ if __name__ == "__main__":
     os.chdir(currentDir)
     
     # remove work dir
-    commands.getoutput('rm -rf %s' % workDir)
+    commands_get_status_output('rm -rf %s' % workDir)
 
     if EC == EC_OK:
-        print 'merge script: success'
+        print ('merge script: success')
     else:
-        print 'merge script: failed : StatusCode=%d' % EC
+        print ('merge script: failed : StatusCode=%d' % EC)
 
     sys.exit(EC)

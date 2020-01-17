@@ -9,7 +9,7 @@ logPreInclude.info("=== Detecting Input File Format ===")
 streamNames = []
 try:
     streamNames = inputFileSummary['stream_names']
-except KeyError,e:
+except KeyError:
     logPreInclude.warning('cannot find stream names - unable to determin POOL format, assuming format "AOD"')
 
 logPreInclude.info('file_type   : %s' % inputFileSummary['file_type'])

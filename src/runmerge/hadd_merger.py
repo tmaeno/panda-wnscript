@@ -116,12 +116,12 @@ if __name__ == "__main__":
                 cmd = 'hadd %s %s %s' % ( hadd_args, tmp_out, ' '.join( c ) )
                 #cmd = 'cat %s > %s' % ( ' '.join( c ), tmp_out )
                 
-                print 'merging "%s" ==> %s' % ( ','.join( c ), tmp_out )
+                print ('merging "%s" ==> %s' % ( ','.join( c ), tmp_out ))
 
                 (rc,out,err) = execSyscmdSubprocess( '%s' % cmd )
 
-                print >> sys.stdout, out
-                print >> sys.stderr, err
+                print (out)
+                print (err)
 
                 if rc != 0:
                     break
@@ -150,11 +150,11 @@ if __name__ == "__main__":
  
         sys.exit(rc)
         
-    except getopt.GetoptError, err:
-        print >> sys.stderr, '%s' % str(err)
+    except getopt.GetoptError as e:
+        print (str(e))
         __usage__()
         sys.exit(1)
 
-    except Exception, err:
-        print >> sys.stderr, '%s' % str(err)
+    except Exception as e:
+        print (str(e))
         sys.exit(2)

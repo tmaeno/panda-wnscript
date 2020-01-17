@@ -332,7 +332,8 @@ def input():
         directPFNs = read_poolfilecatalog()
         logging.info('TURLs in PFC {}'.format(directPFNs))
 
-        for key, in_files in in_map.iteritems():
+        for key in in_map:
+            in_files = in_map[key]
             input_string = ''
             for filename in in_files:
                 # check first it is in the PFC in theory we have flattened
@@ -381,7 +382,8 @@ def rename_ouput():
     # Rename the output files. No need to move them to currentDir
     # because we are already there. PFC and jobreport.json at
     # a later stage all jobs I checked have them empty anyway
-    for old_name, new_name in args.output_files.iteritems():
+    for old_name in args.output_files:
+        new_name = args.output_files[old_name]
         # archive *
         if old_name.find('*') != -1:
             for root, dirs, files in os.walk(current_dir):

@@ -1,18 +1,17 @@
 #! /usr/bin/env python
 
-#from IPython.Shell import IPShellEmbed; ip = IPShellEmbed(["-pdb"])
 from collections import namedtuple
 from contextlib import contextmanager, closing
-from cPickle import dumps, loads, UnpicklingError
-from gc import collect, get_count, get_objects
+from pickle import dumps, loads, UnpicklingError
+from gc import collect, get_objects
 from optparse import OptionParser
-from os.path import exists
+from os.path import exists, dirname, abspath
 from shutil import rmtree
 from tarfile import open as tarfile_open
 from tempfile import mkdtemp
 from time import time
 
-import ROOT as R; R.kTRUE
+import ROOT as R
 from ROOT import gROOT, gSystem
 from ROOT import TTree, TTreeCloner, kTRUE, kFALSE, TObjString
 
@@ -33,14 +32,14 @@ def CopyEntries(to, tree, option=""):
     i = 0
     while i < nentries:
         if tree.LoadTree(i) < 0:
-            break;
+            break
 
             
         if to.GetDirectory():
             file2 = to.GetDirectory().GetFile()
             if file2 and (file2.GetEND() > TTree.GetMaxTreeSize()):
                 if to.GetDirectory() == file2:
-                    to.ChangeFile(file2);
+                    to.ChangeFile(file2)
 
         cloner = TTreeCloner(tree.GetTree(), to, option, TTreeCloner.kNoWarnings)
         if cloner.IsValid():
@@ -71,10 +70,10 @@ def CopyEntries(to, tree, option=""):
         i += tree.GetTree().GetEntries()
 
     if to.GetTreeIndex():
-        to.GetTreeIndex().Append(0, kFALSE); # Force the sorting
+        to.GetTreeIndex().Append(0, kFALSE) # Force the sorting
 
     nbytes = to.GetTotBytes() - totbytes
-    return nbytes;
+    return nbytes
 
 def tree_copy_selection(in_tree, out_tree, selection):
     """
@@ -157,7 +156,7 @@ def most_recent_cycle_keys(directory):
                              if name in most_recent else cyclekey)
                              
     # Just the key objects, sorted in name order.
-    recent_keys = [key for name, (cycle, key) in sorted(most_recent.iteritems())]
+    recent_keys = [most_recent[name][-1] for name in sorted(most_recent.keys())]
     
     # Return all_keys so that we don't lose anything
     return all_keys, recent_keys
@@ -359,7 +358,8 @@ class DirectoryMerger(DefaultMerger):
     
     def finish(self, key_name=None):
         with root_directory(self.merged_object):
-            for this_key_name, merger in sorted(self.contents.iteritems()):
+            for this_key_name in sorted(self.contents.keys()):
+                merger = self.contents[this_key_name]
                 if not merger:
                     # An unsupported class.
                     continue
@@ -369,7 +369,7 @@ def try_tarfile(filename, pattern):
     with closing(tarfile_open(filename)) as tar:
         for f in tar.getmembers():
             if ".root" in f.path and (not pattern or pattern in f.path):
-                print " -", f.path
+                print (" -", f.path)
                 tmpdir = mkdtemp()
                 tar.extract(f.path, tmpdir)
                 yield R.TFile(tmpdir + "/" + f.path)
@@ -377,7 +377,7 @@ def try_tarfile(filename, pattern):
 
 def root_file_generator(filenames, pattern, fs=False, fs_protocol='rfio'):
     for i, filename in enumerate(filenames):
-        print "Complete:", i, "/", len(filenames), filename
+        print ("Complete:", i, "/", len(filenames), filename)
         with timer("process file %i" % i):
             if fs:
                 yield TCopyFile(filename)
@@ -389,16 +389,16 @@ def root_file_generator(filenames, pattern, fs=False, fs_protocol='rfio'):
 def init_file_stager(fs_protocol='rfio'):
 
     ## Try to load FileStager library
-    print 'Loading FileStager library ...'
+    print ('Loading FileStager library ...')
     gSystem.Load('libFileStagerLib')
     from ROOT import TStageManager, TCopyFile, TCopyChain
     gROOT.GetPluginManager().AddHandler("TFile", "^gridcopy:", "TCopyFile","TCopyFile_cxx", "TCopyFile(const char*,Option_t*,const char*,Int_t)")
 
-    print 'Enabling FileStager ...'
+    print ('Enabling FileStager ...')
     TCopyChain.SetOriginalTChain(False)
     TCopyFile.SetOriginalTFile(False)
 
-    print 'Setting up FileStager manager ...'
+    print ('Setting up FileStager manager ...')
     mgr = TStageManager.instance()
     mgr.setInfilePrefix('gridcopy://')
     mgr.setOutfilePrefix('file:')
@@ -424,7 +424,7 @@ def merge_files(output_filename, input_filenames, pattern=None, fs=False, fs_pro
     try:
         first_file = input_generator.next()
     except StopIteration:
-        print "No files to merge!"
+        print ("No files to merge!")
         return 1
     
     directory_merger = DirectoryMerger(first_file, output_file)
