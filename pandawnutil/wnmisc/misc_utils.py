@@ -56,7 +56,13 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
     errStr = None
     for i in range(3):
         try:
-            res = urlopen(url, context=ssl.SSLContext(ssl.PROTOCOL_SSLv23))
+            try:
+                context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+            except Exception:
+                # for old python
+                res = urlopen(url)
+            else:
+                res = urlopen(url, context=context)
             isOK = True
             with open(file_name, 'wb') as f:
                 f.write(res.read())
