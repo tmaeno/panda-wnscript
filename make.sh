@@ -15,8 +15,7 @@ rm -rf $DISTDIR/*
 rm -rf $BUILDDIR/*
 
 # loop over all target
-# already in the old directory: "buildGen" "runAthena" "buildJob"
-for TARGET in "runGen"
+for TARGET in "runGen" "buildGen" "runAthena" "buildJob"
   do
   echo "Start " $TARGET  
   EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
@@ -49,6 +48,17 @@ for TARGET in "runMerge"
   cd $WORKDIR
   # make self-exracting executable
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
+  chmod +x $EXENAME
+  echo
+done
+
+# just copy
+for TARGET in "runcontainer"
+  do
+  echo "Start " $TARGET
+  EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
+  EXENAME=$DISTDIR/$TARGET
+  cp $EXESRCDIR/$TARGET $EXENAME
   chmod +x $EXENAME
   echo
 done

@@ -33,7 +33,6 @@ Procedure:
 import os
 import re
 import sys
-import ssl
 import time
 import uuid
 import getopt
@@ -43,6 +42,7 @@ try:
     from urllib.error import HTTPError
 except ImportError:
     from urllib2 import urlopen, HTTPError
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
 
 # error code
 EC_MissingArg  = 10
@@ -89,29 +89,6 @@ except:
     sys.exit(EC_MissingArg)
 
 
-# replacement for commands
-def commands_get_status_output(com):
-    data = ''
-    try:
-        # not to use check_output for python 2.6
-        # data = subprocess.check_output(com, shell=True, universal_newlines=True, stderr=subprocess.STDOUT)
-        p = subprocess.Popen(com, shell=True, universal_newlines=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-        data, unused_err = p.communicate()
-        retcode = p.poll()
-        if retcode:
-            ex = subprocess.CalledProcessError(retcode, com)
-            raise ex
-        status = 0
-    except subprocess.CalledProcessError as ex:
-        # commented out for python 2.6
-        # data = ex.output
-        status = ex.returncode
-    if data[-1:] == '\n':
-        data = data[:-1]
-    return status, data
-
-
 # save current dir
 currentDir = os.getcwd()
 
@@ -119,38 +96,17 @@ print ("Running in", currentDir)
 print (time.ctime())
 
 url = '%s/cache/%s' % (sourceURL, sources)
-print ("getting %s" % url)
-isOK = False
-errStr = None
-for i in range(3):
-    try:
-        res = urlopen(url, context=ssl.SSLContext(ssl.PROTOCOL_SSLv23))
-        isOK = True
-        with open(sources, 'wb') as f:
-            f.write(res.read())
-        break
-    except HTTPError as e:
-        errStr = 'HTTP code: {0} - Reason: {1}'.format(e.code, e.reason)
-        # doesn't exist
-        if e.code == 404:
-            break
-    except Exception as e:
-        errStr = str(e)
-        time.sleep(30)
-if not isOK:
-    print ("ERROR: Cannot download the user sandbox with {0}".format(errStr))
-    sys.exit(1)
-
-if not os.path.exists(sources):
-    print ('ERROR: unable to fetch source tarball from web')
+print ("getting sandbox file from %s" % url)
+tmpStat, tmpOut = get_file_via_http(full_url=url)
+if not tmpStat:
+    print ("ERROR : " + tmpOut)
     sys.exit(EC_NoTarball)
-
 
 # goto work dir
 workDir = currentDir + '/workDir'
 print (commands_get_status_output('rm -rf %s' % workDir)[-1])
 os.makedirs(workDir)
-print ("Goto workDir",workDir)
+print ("Goto workDir %s" % workDir)
 os.chdir(workDir)
 
 # cmake
