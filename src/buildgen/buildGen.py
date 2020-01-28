@@ -101,7 +101,7 @@ except:
 # save current dir
 currentDir = os.getcwd()
 
-print ("Running in %s" % currentDir)
+print ("--- Running in %s ---" % currentDir)
 
 print ("--- wget ---")
 print (time.ctime())
@@ -192,10 +192,13 @@ if not useAthenaPackages or noCompile:
     print ("--- expand source ---")
     print (time.ctime())
     if sources.startswith('/'):
-        out = commands_get_status_output('tar xvfzm %s' % sources)[-1]
+        tmpStat, out = commands_get_status_output('tar xvfzm %s' % sources)
     else:
-        out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,sources))[-1]
+        tmpStat, out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,sources))
     print (out)
+    if tmpStat != 0:
+        print ("ERROR : {0} is corrupted".format(libraries))
+        sys.exit(EC_NoTarball)
 
 # create cmt dir to setup Athena
 setupEnv = ''

@@ -63,9 +63,9 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
                 res = urlopen(url)
             else:
                 res = urlopen(url, context=context)
-            isOK = True
             with open(file_name, 'wb') as f:
                 f.write(res.read())
+            isOK = True
             break
         except HTTPError as e:
             errStr = 'HTTP code: {0} - Reason: {1}'.format(e.code, e.reason)

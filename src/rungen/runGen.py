@@ -20,6 +20,7 @@ from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_v
 # error code
 EC_MissingArg  = 10
 EC_NoInput     = 11
+EC_Tarball     = 143
 EC_DBRelease   = 144
 EC_WGET        = 146
 EC_LFC         = 147
@@ -241,11 +242,16 @@ os.chdir(workDir)
 
 # expand libraries
 if libraries == '':
-    pass
+    tmpStat, tmpOut = 0, ''
 elif libraries.startswith('/'):
-    print (commands_get_status_output('tar xvfzm %s' % libraries)[-1])
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % libraries)
+    print (tmpOut)
 else:
-    print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))[-1])
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))
+    print (tmpOut)
+if tmpStat != 0:
+    print ("ERROR : {0} is corrupted".format(libraries))
+    sys.exit(EC_Tarball)
 
 # expand jobOs if needed
 if archiveJobO != "" and (useAthenaPackages or libraries == ''):
@@ -255,8 +261,11 @@ if archiveJobO != "" and (useAthenaPackages or libraries == ''):
     if not tmpStat:
         print ("ERROR : " + tmpOut)
         sys.exit(EC_WGET)
-    print (commands_get_status_output('tar xvfzm %s' % archiveJobO)[-1])
-    print ('')
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
+    print (tmpOut)
+    if tmpStat != 0:
+        print ("ERROR : {0} is corrupted".format(archiveJobO))
+        sys.exit(EC_Tarball)
 
 # create cmt dir to setup Athena
 setupEnv = ''

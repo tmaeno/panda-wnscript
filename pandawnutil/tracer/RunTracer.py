@@ -23,7 +23,7 @@ class RunTracer:
 
     # make wrapper
     def make(self):
-        print ("===== make PandaTracer =====")
+        print ("\n===== make PandaTracer =====")
         # create lib base dir
         if self.debugFlag:
             self.libBaseDir = os.getcwd()

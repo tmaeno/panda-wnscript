@@ -81,7 +81,7 @@ EC_MissingArg   = 30
 EC_AthenaFail   = 40
 EC_NoInput      = 141
 EC_MissingInput = 142
-EC_ARA          = 143
+EC_Tarball      = 143
 EC_DBRelease    = 144
 EC_Coll         = 145
 EC_WGET         = 146
@@ -595,13 +595,19 @@ commands_get_status_output('rm -rf %s' % workDir)
 os.makedirs(workDir)
 os.chdir(workDir)
 
+
 # expand libraries
 if libraries == '':
-    pass
+    tmpStat, tmpOut = 0, ''
 elif libraries.startswith('/'):
-    print (commands_get_status_output('tar xvfzm %s' % libraries)[-1])
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % libraries)
+    print (tmpOut)
 else:
-    print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))[-1])
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))
+    print (tmpOut)
+if tmpStat != 0:
+    print ("ERROR : {0} is corrupted".format(libraries))
+    sys.exit(EC_Tarball)
 
 # get and expand jobOs if needed
 if archiveJobO != "":
@@ -613,7 +619,12 @@ if archiveJobO != "":
     if not tmpStat:
         print ("ERROR : " + tmpOut)
         sys.exit(EC_WGET)
-    print (commands_get_status_output('tar xvfzm %s' % archiveJobO)[-1])
+    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
+    print (tmpOut)
+    if tmpStat != 0:
+        print ("ERROR : {0} is corrupted".format(archiveJobO))
+        sys.exit(EC_Tarball)
+
 
 # make rundir just in case
 commands_get_status_output('mkdir %s' % runDir)

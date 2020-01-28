@@ -106,20 +106,23 @@ if not tmpStat:
 workDir = currentDir + '/workDir'
 print (commands_get_status_output('rm -rf %s' % workDir)[-1])
 os.makedirs(workDir)
-print ("Goto workDir %s" % workDir)
+print ("--- Goto workDir %s ---\n" % workDir)
 os.chdir(workDir)
 
 # cmake
 if useCMake:
     # go back to current dir
     os.chdir(currentDir)
-    print ("Just rename for CMake\n")
+    print ("--- Checking tarball for CMake ---\n")
     os.rename(sources,libraries)
     if debugFlag:
         # expand 
-        subprocess.call('tar xvfzm {0}'.format(libraries),shell=True)
+        tmpStat = subprocess.call('tar xvfzm {0}'.format(libraries),shell=True)
     else:
-        subprocess.call('tar tvfz {0}'.format(libraries),shell=True)
+        tmpStat = subprocess.call('tar tvfz {0}'.format(libraries),shell=True)
+    if tmpStat != 0:
+        print ("ERROR : {0} is corrupted".format(libraries))
+        sys.exit(EC_NoTarball)
     print ("\n--- finished ---")
     print (time.ctime())
     # return
@@ -127,7 +130,7 @@ if useCMake:
 
 # crate tmpdir
 tmpDir = str(uuid.uuid4()) + '/cmt'
-print ("Making tmpDir",tmpDir)
+print ("--- Making tmpDir ---",tmpDir)
 os.makedirs(tmpDir)
 
 print ("--- expand source ---")
@@ -135,10 +138,13 @@ print (time.ctime())
 
 # expand sources
 if sources.startswith('/'):
-    out = commands_get_status_output('tar xvfzm %s' % sources)[-1]
+    tmpStat, out = commands_get_status_output('tar xvfzm %s' % sources)
 else:
-    out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,sources))[-1]
+    tmpStat, out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,sources))
 print (out)
+if tmpStat != 0:
+    print ("ERROR : {0} is corrupted".format(sources))
+    sys.exit(EC_NoTarball)
 
 # check if groupArea exists
 groupFile = re.sub('^sources','groupArea',sources)
