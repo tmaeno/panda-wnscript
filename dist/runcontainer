@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.6'
+VERSION = '1.1.7'
 
 
 def main():
@@ -56,19 +56,88 @@ def main():
     logging.info("End time: " + time.ctime())
 
 
-def singularity_sandbox(source_image=''):
+def agis_container_options():
 
-    # We need to sandbox because singularity has changed behaviour in 3.1.1
-    # and produces a SIFG image when it exec from a docker registry
     if 'PILOT_HOME' not in os.environ:
         os.environ['PILOT_HOME'] = os.environ['PWD']
 
-    # Disable cache so we don't even have have twice the files and we don't need to delete it
-    # this doesn't work yet os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
+    queuedata_json = os.path.join(os.environ['PILOT_HOME'],'queuedata.json')
+    data = {'container_type':'singularity', 'container_options':None}
+    if os.access(queuedata_json, os.R_OK):
+        with open(queuedata_json, "r") as from_file:
+             tmp_data = json.load(from_file)
+             data = {'container_type':tmp_data['container_type'].split(':')[0],'container_options':tmp_data['container_options']}
+    else:
+        logging.info('Cannot read the panda queue information from {}. '+
+                     'Using default runtime singularity with no extra options'.format(queuedata_json))
+    return data
 
+
+def runtime_version():
+
+    # Check runtime exists and is executable
+    # python 3.3
+    # def cmd_exists(x):
+    # return shutil.which(x) is not None 
+    # This part of checking the user namespaces and the runtime
+    # might need to be isolated in its own function
+
+    def cmd_exists(x):
+        return any(
+            os.access(os.path.join(path, x), os.X_OK)
+            for path in os.environ["PATH"].split(os.pathsep)
+        )
+
+    def cmd_path(x):
+        for path in os.environ["PATH"].split(os.pathsep):
+            bin_path=os.path.join(path, x)
+            if os.access(bin_path, os.X_OK):
+                break
+        return bin_path
+    
+    # I hate the hard coded path but we are going down that route for other things
+    runtime_data = agis_container_options()
+    runtime = runtime_data['container_type']
+    bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
+
+    if subprocess.check_output(['sysctl', '-n', 'user.max_user_namespaces']) > 0:
+        logging.info('User namespaces is enabled. Checking if the runtime {} is in CVMFS'.format(runtime))
+        if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
+            os.environ['PATH'] = '{0}:{1}'.format(bin_path, os.environ['PATH'])
+            logging.info('{} is available in CVMFS. Adding to the path.'.format(runtime))
+        else:
+            logging.info('CVMFS not available'.format(runtime))
+    elif cmd_exists(runtime):
+        logging.info('{} is in the local PATH.'.format(runtime))
+    else:
+        logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
+        sys.exit(cmd_exists(runtime))
+
+    logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).rstrip()))
+    runtime_data['version'] = subprocess.check_output([runtime, '--version'])
+    return runtime_data
+
+
+def singularity_sandbox(data={},source_image=''):
+
+    # We need to sandbox because singularity has changed behaviour in 3.1.1
+    # and produces a SIFG image when it exec from a docker registry
     os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
                                                         re.sub('\W+', '_', source_image))
-    os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
+    # Need to check the VERSION to add --fix-perms and disable the cache for
+    # releases > 3.5.2
+    sv = data['version'].rstrip('\n')
+    fix_perms = ''
+    if int(''.join(sv.split(' ',3)[2].split('-',1)[0].split('.'))) >= 352:
+        fix_perms = '--fix-perms'
+        os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
+        logging.info('{}. Fixing permissions and disabling cache'.format(sv))
+    # Disable cache so we don't even have have twice the files and we don't need to delete it
+    # this doesn't work yet os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
+    else:
+        os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
+        logging.info('Singularity version: {}. Setting cache dir to: {}'.format(sv,os.environ['SINGULARITY_CACHEDIR']))
+
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'image')
 
     if not os.path.exists(target_image):
@@ -76,13 +145,13 @@ def singularity_sandbox(source_image=''):
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
         debug = '--debug' if args.debug else '-s'
-        sing_cmd = "singularity {0} build --sandbox {1} {2}".format(debug, target_image, source_image)
+        sing_cmd = "singularity {0} build {1} --sandbox {2} {3}".format(debug, fix_perms, target_image, source_image)
         logging.info("Singularity command: %s", sing_cmd)
         execute(shlex.split(sing_cmd))
     else:
         logging.debug('Local image {} already exists. Trying it....'.format(target_image))
 
-    if os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+    if 'SINGULARITY_CACHEDIR' in os.environ and os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
         logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
         shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
 
@@ -98,6 +167,9 @@ def singularity_user_proxy():
     # user_proxy is the name of the copied proxy to avoid copying it several
     # times? This certainly works for the pilot proxy that doesn't change, for
     # the user proxy it's a question mark.
+    #
+    # This also needs to be reviewed if we start to use podman
+    #
     if 'X509_USER_PROXY' not in os.environ:
         logging.error('X509_USER_PROXY required but not defined')
         sys.exit(1163)
@@ -119,14 +191,13 @@ def singularity_user_proxy():
 
     return '-B {}:{}'.format(os.environ['X509_CERT_DIR'], ca_cert_dir)
 
-
-def singularity_container():
+def singularity_container(data={}):
 
     # Do we have to sandbox? Only if the image is from a docker registry
     # not if it is from /cvmfs in that case we want to use the image
     exec_image = ''
     if re.search('docker://', args.ctr_image):
-        exec_image = singularity_sandbox(args.ctr_image)
+        exec_image = singularity_sandbox(data,args.ctr_image)
     else:
         exec_image = args.ctr_image
 
@@ -158,10 +229,7 @@ def singularity_container():
     # If Cvmfs add that to bind_paths
     cvmfs = '-B /cvmfs:/cvmfs' if args.ctr_cvmfs else ''
 
-    # AGIS options
-    pq_data = agis_container_options()
-
-    container_options = pq_data['container_options'] if pq_data and pq_data['container_options'] != None else ''
+    container_options = data['container_options'] if data and data['container_options'] != None else ''
 
     # set the singularity user proxy
     x509_cert_bind = singularity_user_proxy() if not args.ctr_x509 else ''
@@ -186,64 +254,14 @@ def singularity_container():
     execute(shlex.split(singularity_cmd))
 
 
-def agis_container_options():
-
-    queuedata_json = os.path.join(os.environ['PILOT_HOME'],'queuedata.json')
-    data = {}
-    if os.access(queuedata_json, os.R_OK):
-        with open(queuedata_json, "r") as from_file:
-             data = json.load(from_file)
-    else:
-        logging.info('Cannot read the panda queue information from {}'.format(queuedata_json))
-    return data
+def podman_container(data={}):
+    print data['container_type'], data['container_options'], data['version']
+    print "podman container to be developed"
 
 
 def execute(cmd=[]):
 
-    # Check runtime exists and is executable
-    # python 3.3
-    # def cmd_exists(x):
-    # return shutil.which(x) is not None
-    def cmd_exists(x):
-        return any(
-            os.access(os.path.join(path, x), os.X_OK)
-            for path in os.environ["PATH"].split(os.pathsep)
-        )
-
-    def cmd_path(x):
-        for path in os.environ["PATH"].split(os.pathsep):
-            bin_path=os.path.join(path, x)
-            if os.access(bin_path, os.X_OK):
-                break
-        return bin_path
-
-    # Check if usernamespaces is enabled. Non standard archs like cray
-    # at CSCS don't have max_user_namespaces
-    def is_user_ns():
-        ns = 0
-        if os.access('/proc/sys/user/max_user_namespaces',os.R_OK):
-            with open('/proc/sys/user/max_user_namespaces') as fp:
-                ns = int(fp.readline().rstrip())
-        return ns
-
-    # I hate the hard coded path but we are going down that route for other things
-    runtime = cmd[0]
-    bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
-
-    if is_user_ns() > 0:
-        logging.info('User namespaces is enabled. Will try the runtime {} in CVMFS'.format(runtime))
-        if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
-            os.environ['PATH'] = '{0}:{1}'.format(bin_path, os.environ['PATH'])
-            logging.info('{} is available in CVMFS. Adding to the path.'.format(runtime))
-    elif cmd_exists(runtime):
-        logging.info('{} is in the local PATH.'.format(runtime))
-    else:
-        logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
-        sys.exit(cmd_exists(runtime))
-
-    logging.info(subprocess.check_output(['which', runtime]).rstrip())
-    logging.info(subprocess.check_output(['singularity', '--version']))
-
+    ##############################################################
     # Run subprocess print stdout catch stderr in a generic way
     ch = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
     ch_stdout, ch_stderr = ch.communicate()
@@ -263,10 +281,17 @@ def execute(cmd=[]):
 def run_container():
 
     logging.info("Start container time: " + time.ctime())
+    pq_data = runtime_version()
+    ctr_type = pq_data['container_type']
+    logging.info("runtime is: {}".format(ctr_type))
 
     # to review when more than one container
     # or when I'll parse queue data
-    singularity_container()
+    if ctr_type == 'singularity':
+        singularity_container(pq_data)
+
+    elif ctr_type == 'podman':
+        podman_container(pq_data)
 
     logging.info("End container time: " + time.ctime())
 
@@ -332,8 +357,7 @@ def input():
         directPFNs = read_poolfilecatalog()
         logging.info('TURLs in PFC {}'.format(directPFNs))
 
-        for key in in_map:
-            in_files = in_map[key]
+        for key, in_files in in_map.iteritems():
             input_string = ''
             for filename in in_files:
                 # check first it is in the PFC in theory we have flattened
@@ -382,8 +406,7 @@ def rename_ouput():
     # Rename the output files. No need to move them to currentDir
     # because we are already there. PFC and jobreport.json at
     # a later stage all jobs I checked have them empty anyway
-    for old_name in args.output_files:
-        new_name = args.output_files[old_name]
+    for old_name, new_name in args.output_files.iteritems():
         # archive *
         if old_name.find('*') != -1:
             for root, dirs, files in os.walk(current_dir):
