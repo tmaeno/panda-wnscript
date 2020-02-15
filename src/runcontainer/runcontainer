@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.7'
+VERSION = '1.1.8'
 
 
 def main():
@@ -70,6 +70,7 @@ def agis_container_options():
     else:
         logging.info('Cannot read the panda queue information from {}. '+
                      'Using default runtime singularity with no extra options'.format(queuedata_json))
+    logging.info("runtime is: {}".format(data['container_type']))
     return data
 
 
@@ -78,7 +79,7 @@ def runtime_version():
     # Check runtime exists and is executable
     # python 3.3
     # def cmd_exists(x):
-    # return shutil.which(x) is not None 
+    # return shutil.which(x) is not None
     # This part of checking the user namespaces and the runtime
     # might need to be isolated in its own function
 
@@ -94,7 +95,7 @@ def runtime_version():
             if os.access(bin_path, os.X_OK):
                 break
         return bin_path
-    
+
     # I hate the hard coded path but we are going down that route for other things
     runtime_data = agis_container_options()
     runtime = runtime_data['container_type']
@@ -107,10 +108,11 @@ def runtime_version():
             logging.info('{} is available in CVMFS. Adding to the path.'.format(runtime))
         else:
             logging.info('CVMFS not available'.format(runtime))
-    elif cmd_exists(runtime):
-        logging.info('{} is in the local PATH.'.format(runtime))
+
+    if cmd_exists(runtime):
+        logging.info('{} is in the PATH.'.format(runtime))
     else:
-        logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
+        logging.error('{} is not in the PATH and user NS is not enabled'.format(runtime))
         sys.exit(cmd_exists(runtime))
 
     logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).rstrip()))
@@ -283,7 +285,6 @@ def run_container():
     logging.info("Start container time: " + time.ctime())
     pq_data = runtime_version()
     ctr_type = pq_data['container_type']
-    logging.info("runtime is: {}".format(ctr_type))
 
     # to review when more than one container
     # or when I'll parse queue data
