@@ -202,7 +202,7 @@ def singularity_user_proxy():
 
 def singularity_container(data={}):
 
-    logging.info("Container type: {}, {}, Container options: {}" \
+    logging.debug("Container type: {}, {}, Container options: {}" \
                  .format(data['container_type'], data['version'], data['container_options']))
     # Do we have to sandbox? Only if the image is from a docker registry
     # not if it is from /cvmfs in that case we want to use the image
@@ -266,10 +266,10 @@ def singularity_container(data={}):
 
 
 def podman_container(data={}):
-    logging.info("Container type: {}, {}, Container options: {}" \
+    logging.debug("Container type: {}, {}, Container options: {}" \
                  .format(data['container_type'], data['version'], data['container_options']))
 
-    logging.warn('Podman container to be developed')
+    logging.info('Podman container to be developed')
 
 
 def execute(cmd=[]):
