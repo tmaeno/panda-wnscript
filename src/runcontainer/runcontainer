@@ -71,7 +71,7 @@ def agis_container_options():
     else:
         logging.info('Cannot read the panda queue information from {}. '+
                      'Using default runtime singularity with no extra options'.format(queuedata_json))
-    logging.info("runtime is: {}".format(data['container_type']))
+
     return data
 
 
@@ -120,7 +120,8 @@ def runtime_version():
         sys.exit(cmd_exists(runtime))
 
     logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).decode('utf-8').rstrip()))
-    runtime_data['version'] = subprocess.check_output([runtime, '--version']).decode('utf-8')
+    runtime_data['version'] = subprocess.check_output([runtime, '--version']).decode('utf-8').rstrip()
+
     return runtime_data
 
 
@@ -201,6 +202,8 @@ def singularity_user_proxy():
 
 def singularity_container(data={}):
 
+    logging.info("Container type: {}, {}, Container options: {}" \
+                 .format(data['container_type'], data['version'], data['container_options']))
     # Do we have to sandbox? Only if the image is from a docker registry
     # not if it is from /cvmfs in that case we want to use the image
     exec_image = ''
@@ -263,7 +266,9 @@ def singularity_container(data={}):
 
 
 def podman_container(data={}):
-    logging.info("Container type: {}, Container options: {}, Container version {}", data['container_type'], data['container_options'], data['version'])
+    logging.info("Container type: {}, {}, Container options: {}" \
+                 .format(data['container_type'], data['version'], data['container_options']))
+
     logging.warn('Podman container to be developed')
 
 
