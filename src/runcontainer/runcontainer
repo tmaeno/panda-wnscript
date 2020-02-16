@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.7'
+VERSION = '1.1.9'
 
 
 def main():
@@ -66,10 +66,12 @@ def agis_container_options():
     if os.access(queuedata_json, os.R_OK):
         with open(queuedata_json, "r") as from_file:
              tmp_data = json.load(from_file)
-             data = {'container_type':tmp_data['container_type'].split(':')[0],'container_options':tmp_data['container_options']}
+             data = {'container_type':tmp_data['container_type'].split(':')[0],
+                     'container_options':tmp_data['container_options']}
     else:
         logging.info('Cannot read the panda queue information from {}. '+
                      'Using default runtime singularity with no extra options'.format(queuedata_json))
+
     return data
 
 
@@ -78,7 +80,7 @@ def runtime_version():
     # Check runtime exists and is executable
     # python 3.3
     # def cmd_exists(x):
-    # return shutil.which(x) is not None 
+    # return shutil.which(x) is not None
     # This part of checking the user namespaces and the runtime
     # might need to be isolated in its own function
 
@@ -94,27 +96,32 @@ def runtime_version():
             if os.access(bin_path, os.X_OK):
                 break
         return bin_path
-    
+
     # I hate the hard coded path but we are going down that route for other things
     runtime_data = agis_container_options()
     runtime = runtime_data['container_type']
     bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
 
-    if subprocess.check_output(['sysctl', '-n', 'user.max_user_namespaces']) > 0:
+    user_ns = subprocess.check_output(['sysctl', '-n', 'user.max_user_namespaces']).decode('utf-8')
+    if int(user_ns) > 0:
         logging.info('User namespaces is enabled. Checking if the runtime {} is in CVMFS'.format(runtime))
         if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
             os.environ['PATH'] = '{0}:{1}'.format(bin_path, os.environ['PATH'])
             logging.info('{} is available in CVMFS. Adding to the path.'.format(runtime))
         else:
             logging.info('CVMFS not available'.format(runtime))
-    elif cmd_exists(runtime):
-        logging.info('{} is in the local PATH.'.format(runtime))
     else:
-        logging.error('{} is not in the PATH and user NS is not enabled or there is no CVMFS'.format(runtime))
+        logging.info('User namespaces is NOT enabled.')
+
+    if cmd_exists(runtime):
+        logging.info('{} is in the PATH.'.format(runtime))
+    else:
+        logging.error('{} is not in the PATH and user NS is not enabled'.format(runtime))
         sys.exit(cmd_exists(runtime))
 
-    logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).rstrip()))
-    runtime_data['version'] = subprocess.check_output([runtime, '--version'])
+    logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).decode('utf-8').rstrip()))
+    runtime_data['version'] = subprocess.check_output([runtime, '--version']).decode('utf-8').rstrip()
+
     return runtime_data
 
 
@@ -124,36 +131,38 @@ def singularity_sandbox(data={},source_image=''):
     # and produces a SIFG image when it exec from a docker registry
     os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
                                                         re.sub('\W+', '_', source_image))
-    # Need to check the VERSION to add --fix-perms and disable the cache for
-    # releases > 3.5.2
-    sv = data['version'].rstrip('\n')
-    fix_perms = ''
-    if int(''.join(sv.split(' ',3)[2].split('-',1)[0].split('.'))) >= 352:
-        fix_perms = '--fix-perms'
-        os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
-        logging.info('{}. Fixing permissions and disabling cache'.format(sv))
-    # Disable cache so we don't even have have twice the files and we don't need to delete it
-    # this doesn't work yet os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
-    else:
-        os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
-        logging.info('Singularity version: {}. Setting cache dir to: {}'.format(sv,os.environ['SINGULARITY_CACHEDIR']))
 
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'image')
 
     if not os.path.exists(target_image):
-        logging.debug('Local image {} doesn\'t exist yet, building.'.format(target_image))
+
+        logging.info('Local image {} doesn\'t exist yet, building.'.format(target_image))
+
+        # Need to check the VERSION to add --fix-perms and disable the cache for
+        # releases > 3.5.2
+        sv = data['version'].rstrip('\n')
+        fix_perms = ''
+        if int(''.join(sv.split(' ',3)[2].split('-',1)[0].split('.'))) >= 352:
+            fix_perms = '--fix-perms'
+            os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
+            logging.info('{}. Fixing permissions and disabling cache'.format(sv))
+        else:
+            os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
+            logging.info('Singularity version: {}. Setting cache dir to: {}'.format(sv,os.environ['SINGULARITY_CACHEDIR']))
+
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
         debug = '--debug' if args.debug else '-s'
         sing_cmd = "singularity {0} build {1} --sandbox {2} {3}".format(debug, fix_perms, target_image, source_image)
         logging.info("Singularity command: %s", sing_cmd)
         execute(shlex.split(sing_cmd))
-    else:
-        logging.debug('Local image {} already exists. Trying it....'.format(target_image))
 
-    if 'SINGULARITY_CACHEDIR' in os.environ and os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
-        logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
-        shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+        if 'SINGULARITY_CACHEDIR' in os.environ and os.path.exists(os.environ['SINGULARITY_CACHEDIR']):
+            logging.info("Deleting {0}.".format(os.environ['SINGULARITY_CACHEDIR']))
+            shutil.rmtree(os.environ['SINGULARITY_CACHEDIR'])
+
+    else:
+        logging.info('Local image {} already exists. Trying it....'.format(target_image))
 
     return target_image
 
@@ -193,6 +202,8 @@ def singularity_user_proxy():
 
 def singularity_container(data={}):
 
+    logging.debug("Container type: {}, {}, Container options: {}" \
+                 .format(data['container_type'], data['version'], data['container_options']))
     # Do we have to sandbox? Only if the image is from a docker registry
     # not if it is from /cvmfs in that case we want to use the image
     exec_image = ''
@@ -255,8 +266,10 @@ def singularity_container(data={}):
 
 
 def podman_container(data={}):
-    print data['container_type'], data['container_options'], data['version']
-    print "podman container to be developed"
+    logging.debug("Container type: {}, {}, Container options: {}" \
+                 .format(data['container_type'], data['version'], data['container_options']))
+
+    logging.info('Podman container to be developed')
 
 
 def execute(cmd=[]):
@@ -283,7 +296,6 @@ def run_container():
     logging.info("Start container time: " + time.ctime())
     pq_data = runtime_version()
     ctr_type = pq_data['container_type']
-    logging.info("runtime is: {}".format(ctr_type))
 
     # to review when more than one container
     # or when I'll parse queue data
@@ -357,7 +369,7 @@ def input():
         directPFNs = read_poolfilecatalog()
         logging.info('TURLs in PFC {}'.format(directPFNs))
 
-        for key, in_files in in_map.iteritems():
+        for key, in_files in in_map.items():
             input_string = ''
             for filename in in_files:
                 # check first it is in the PFC in theory we have flattened
@@ -406,7 +418,7 @@ def rename_ouput():
     # Rename the output files. No need to move them to currentDir
     # because we are already there. PFC and jobreport.json at
     # a later stage all jobs I checked have them empty anyway
-    for old_name, new_name in args.output_files.iteritems():
+    for old_name, new_name in args.output_files.items():
         # archive *
         if old_name.find('*') != -1:
             for root, dirs, files in os.walk(current_dir):
