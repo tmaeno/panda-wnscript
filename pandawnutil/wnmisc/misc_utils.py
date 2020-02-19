@@ -52,6 +52,8 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
         url = full_url
         if file_name == '':
             file_name = url.split('/')[-1]
+    if os.path.exists(file_name):
+        return True, None
     isOK = False
     errStr = None
     for i in range(3):
