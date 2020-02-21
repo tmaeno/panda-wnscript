@@ -16,7 +16,7 @@ try:
     from urllib.error import HTTPError
 except ImportError:
     from urllib2 import urlopen, HTTPError
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory
 
 # error code
 EC_MissingArg  = 10
@@ -99,9 +99,7 @@ except:
     sys.exit(EC_MissingArg)
 
 # save current dir
-currentDir = os.getcwd()
-
-print ("--- Running in %s ---" % currentDir)
+currentDir = record_exec_directory()
 
 print ("--- wget ---")
 print (time.ctime())
@@ -146,7 +144,6 @@ if useAthenaPackages and not noCompile:
 else:
     # get source files
     url = '%s/cache/%s' % (sourceURL, sources)
-    print ('getting sandbox file from {0}'.format(url))
     tmpStat, tmpOut = get_file_via_http(full_url=url)
     if not tmpStat:
         print ("ERROR : " + tmpOut)

@@ -15,7 +15,7 @@ try:
     import urllib.request as urllib
 except ImportError:
     import urllib
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory
 
 # error code
 EC_MissingArg  = 10
@@ -230,9 +230,8 @@ if directIn and not givenPFN:
         directPFNs[lfn] = directTmp[id]
 
 # save current dir
-currentDir = os.getcwd()
+currentDir = record_exec_directory()
 currentDirFiles = os.listdir('.')
-print ("==== Running in %s ====\n" % currentDir)
 
 # crate work dir
 workDir = currentDir+"/workDir"
@@ -256,7 +255,6 @@ if tmpStat != 0:
 # expand jobOs if needed
 if archiveJobO != "" and (useAthenaPackages or libraries == ''):
     url = '%s/cache/%s' % (sourceURL, archiveJobO)
-    print ('=== getting {0}'.format(url))
     tmpStat, tmpOut = get_file_via_http(full_url=url)
     if not tmpStat:
         print ("ERROR : " + tmpOut)

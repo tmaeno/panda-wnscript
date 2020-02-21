@@ -73,7 +73,7 @@ try:
 except NameError:
     long = int
     basestring = str
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory
 
 # error code
 EC_PoolCatalog  = 20
@@ -268,7 +268,7 @@ for o, a in opts:
         
 
 # save current dir
-currentDir = os.getcwd()
+currentDir = record_exec_directory()
 
 # change full path
 if envvarFile != '':
@@ -614,7 +614,6 @@ if archiveJobO != "":
     isOK = False
     errStr = None
     url = '%s/cache/%s' % (sourceURL, archiveJobO)
-    print ('getting sandbox file from {0}'.format(url))
     tmpStat, tmpOut = get_file_via_http(full_url=url)
     if not tmpStat:
         print ("ERROR : " + tmpOut)

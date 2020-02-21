@@ -9,6 +9,12 @@ except ImportError:
 import ssl
 import subprocess
 
+# internal env variable to record the execution home directory name
+ENV_HOME = 'TRF_EXEC_HOME_DIR'
+
+# env variable of payload input directory
+ENV_WORK_DIR = 'PAYLOAD_INPUT_DIR'
+
 
 # add user job metadata
 def add_user_job_metadata():
@@ -52,8 +58,20 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
         url = full_url
         if file_name == '':
             file_name = url.split('/')[-1]
+    print ("--- Getting file from %s" % url)
+    # the file already exists in the current directory
     if os.path.exists(file_name):
+        print ("skip since the file already exists in the current directory")
         return True, None
+    # the file exists in the home directory or payload working directory
+    for tmpEnv in [ENV_HOME, ENV_WORK_DIR]:
+        if tmpEnv in os.environ:
+            fileInHome = os.path.join(os.environ[tmpEnv], file_name)
+            if os.path.exists(fileInHome):
+                # make symlink
+                os.symlink(fileInHome, file_name)
+                print ("skip since the file is available in {0}".format(os.environ[tmpEnv]))
+                return True, None
     isOK = False
     errStr = None
     for i in range(3):
@@ -81,6 +99,7 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
         return False, "Cannot download the user sandbox with {0}".format(errStr)
     if not os.path.exists(file_name):
         return False, 'Unable to fetch %s from web' % file_name
+    print ("succeeded")
     return True, None
 
 
@@ -105,3 +124,11 @@ def commands_get_status_output(com):
     if data[-1:] == '\n':
         data = data[:-1]
     return status, data
+
+
+# record current exec directory
+def record_exec_directory():
+    currentDir = os.getcwd()
+    os.environ[ENV_HOME] = currentDir
+    print ("--- Running in %s ---" % currentDir)
+    return currentDir

@@ -42,7 +42,7 @@ try:
     from urllib.error import HTTPError
 except ImportError:
     from urllib2 import urlopen, HTTPError
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory
 
 # error code
 EC_MissingArg  = 10
@@ -90,13 +90,11 @@ except:
 
 
 # save current dir
-currentDir = os.getcwd()
+currentDir = record_exec_directory()
 
-print ("Running in", currentDir)
 print (time.ctime())
 
 url = '%s/cache/%s' % (sourceURL, sources)
-print ("getting sandbox file from %s" % url)
 tmpStat, tmpOut = get_file_via_http(full_url=url)
 if not tmpStat:
     print ("ERROR : " + tmpOut)
