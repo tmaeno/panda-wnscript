@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.9'
+VERSION = '1.1.10'
 
 
 def main():
@@ -74,6 +74,14 @@ def agis_container_options():
 
     return data
 
+def check_usernamespaces():
+
+    user_ns = 0
+    for file in glob.glob('/etc/sysctl.d/*.conf'):
+        if 'max_user_namespaces' in file:
+            user_ns = int(subprocess.check_output(['grep', '-s', 'user.max_user_namespaces',file]).decode('utf-8').split('=')[1])
+    return user_ns
+
 
 def runtime_version():
 
@@ -102,7 +110,8 @@ def runtime_version():
     runtime = runtime_data['container_type']
     bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
 
-    user_ns = subprocess.check_output(['sysctl', '-n', 'user.max_user_namespaces']).decode('utf-8')
+    user_ns = check_usernamespaces()
+
     if int(user_ns) > 0:
         logging.info('User namespaces is enabled. Checking if the runtime {} is in CVMFS'.format(runtime))
         if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
@@ -121,7 +130,7 @@ def runtime_version():
 
     logging.info('Using: {}'.format(subprocess.check_output(['which', runtime]).decode('utf-8').rstrip()))
     runtime_data['version'] = subprocess.check_output([runtime, '--version']).decode('utf-8').rstrip()
-
+    logging.info('Singularity version: {0}'.format(runtime_data['version']))
     return runtime_data
 
 
@@ -142,13 +151,13 @@ def singularity_sandbox(data={},source_image=''):
         # releases > 3.5.2
         sv = data['version'].rstrip('\n')
         fix_perms = ''
-        if int(''.join(sv.split(' ',3)[2].split('-',1)[0].split('.'))) >= 352:
+        if int(''.join(re.findall(r'(\d+)[.]{0,1}', sv)[:3])) >= 352:
             fix_perms = '--fix-perms'
             os.environ['SINGULARITY_DISABLE_CACHE'] = 'true'
             logging.info('{}. Fixing permissions and disabling cache'.format(sv))
         else:
             os.environ['SINGULARITY_CACHEDIR'] = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'cache')
-            logging.info('Singularity version: {}. Setting cache dir to: {}'.format(sv,os.environ['SINGULARITY_CACHEDIR']))
+            logging.info('Setting cache dir to: {}'.format(os.environ['SINGULARITY_CACHEDIR']))
 
         if not os.path.exists(os.environ['SINGULARITY_TMPDIR']):
             os.mkdir(os.environ['SINGULARITY_TMPDIR'], 0o755)
