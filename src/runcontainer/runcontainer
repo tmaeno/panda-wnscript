@@ -78,9 +78,14 @@ def check_usernamespaces():
 
     user_ns = 0
 
-    for file in glob.glob('/etc/sysctl.d/*.conf'):
-        if 'max_user_namespaces' in file:
-            user_ns = int(subprocess.check_output(['grep', '-s', 'user.max_user_namespaces',file]).decode('utf-8').split('=')[1])
+    for file in glob.iglob('/etc/sysctl.d/*.conf'):
+        for line in open(file, 'r'):
+            if re.search('user.max_user_namespaces', line):
+                ns_keyval = line.split('=')
+                if 1 < len(ns_keyval):
+                    user_ns = ns_keyval[1].strip()
+                    logging.info('File: {0}, Line: {1}, Conf: {2}'.format(file, line.strip(), user_ns))
+
 
 #    if os.path.exists('/proc/sys/user/max_user_namespaces'):
 #        f = open('/proc/sys/user/max_user_namespaces','r')
@@ -231,12 +236,12 @@ def singularity_user_proxy():
 
 def singularity_envvars():
 
-    if 'ATHENA_CORE_NUM' in os.environ:
-        os.environ['SINGULARITYENV_ATHENA_CORE_NUM'] = os.environ['ATHENA_CORE_NUM']
+    if 'ATHENA_CORE_NUMBER' in os.environ:
+        os.environ['SINGULARITYENV_ATHENA_CORE_NUMBER'] = os.environ['ATHENA_CORE_NUMBER']
 
-    logging.info("====== runcontainer host environment ======")
     if args.debug:
-        for param in os.environ.keys():
+        logging.info("====== runcontainer host environment ======")
+        for param in sorted(os.environ.keys()):
             logging.info('{}={}'.format(param,os.environ[param]))
 
 
