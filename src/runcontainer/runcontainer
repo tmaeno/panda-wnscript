@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.11'
+VERSION = '1.1.12'
 
 
 def main():
