@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.12'
+VERSION = '1.1.13'
 
 
 def main():
@@ -456,9 +456,23 @@ def input():
     return out_map
 
 
+def rename_user_metadata_json():
+
+    current_dir = os.environ['PWD']
+    user_meta = '{}/userJobMetadata.json'.format(current_dir)
+    job_report = '{}/jobReport.json'.format(current_dir)
+
+    if os.access(user_meta, os.R_OK):
+        os.rename(user_meta,job_report)
+        logging.info('Found {}, renaming to {}'.format(user_meta,job_report))
+
+
 def rename_ouput():
 
     current_dir = os.environ['PWD']
+
+    rename_user_metadata_json()
+
     # Rename the output files. No need to move them to currentDir
     # because we are already there. PFC and jobreport.json at
     # a later stage all jobs I checked have them empty anyway
