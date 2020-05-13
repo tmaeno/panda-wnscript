@@ -701,7 +701,7 @@ if __name__ == "__main__":
     os.chdir(runDir)
 
     # make dump file for preprocess
-    dumpFileName = os.path.join(currentDir, '__runmerge_main_exec.sh')
+    dumpFileName = os.path.join(currentDir, '__run_main_exec.sh')
     dumpFile = None
     if preprocess:
         dumpFile = open(dumpFileName, 'w')

@@ -544,7 +544,7 @@ if not postprocess:
     # construct command
     com = setupEnv
     if preprocess:
-        tmpTrfName = os.path.join(currentDir, '__rungen_main_exec.sh')
+        tmpTrfName = os.path.join(currentDir, '__run_main_exec.sh')
     else:
         tmpTrfName = 'trf.%s.py' % str(uuid.uuid4())
     tmpTrfFile = open(tmpTrfName,'w')
