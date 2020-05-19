@@ -446,41 +446,6 @@ if not postprocess:
 
     # put ROOT.py to avoid a crash caused by long argument at direct access site
     commands_get_status_output('rm ROOT.py')
-    rootFile = open('ROOT.py','w')
-    rootFile.write("""
-    print 'INFO: trying to wrap ROOT.py'
-    import os    
-    import sys
-    import copy
-    origPath = copy.copy(sys.path)
-    origArgv = copy.copy(sys.argv)
-    sys.path = sys.path[1:]
-    try:
-        sys.path.remove('')
-    except:
-        pass
-    try:
-        sys.path.remove('.')
-    except:
-        pass
-    try:
-        sys.path.remove(os.getcwd())
-    except:
-        pass
-    sys.argv[1:]=[]
-    import ROOT
-    reload(ROOT)
-    from ROOT import *
-    sys.path = origPath
-    sys.argv = origArgv
-    try:
-        print 'INFO: using %s' % sys.modules['ROOT']
-        print 'INFO: ROOT.py has been successfully wrapped'
-    except:
-        print 'ERROR: failed to wrap ROOT.py'
-    """)
-    rootFile.close()
-
 
     print ("=== ls %s ===" % runDir)
     print (commands_get_status_output('ls -l')[-1])
