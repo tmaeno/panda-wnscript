@@ -2,10 +2,12 @@ import os
 import json
 import time
 try:
-    from urllib.request import urlopen
+    from urllib.request import urlopen, Request
     from urllib.error import HTTPError
+    from urllib.parse import urlencode
 except ImportError:
-    from urllib2 import urlopen, HTTPError
+    from urllib import urlencode
+    from urllib2 import urlopen, HTTPError, Request
 import ssl
 import subprocess
 
@@ -51,14 +53,22 @@ def add_user_job_metadata():
 
 
 # get file via http
-def get_file_via_http(base_url='', file_name='', full_url=''):
+def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers=None,
+                      certfile=None, keyfile=None):
     if full_url == '':
         url = "%s/cache/%s" % (base_url, file_name)
     else:
         url = full_url
         if file_name == '':
             file_name = url.split('/')[-1]
-    print ("--- Getting file from %s" % url)
+    tmpMsg = "--- Access to %s" % url
+    if data is not None:
+        tmpMsg += ' {0}'.format(str(data))
+    print (tmpMsg)
+    if data is not None:
+        data = urlencode(data).encode()
+    if headers is None:
+        headers = {}
     # the file already exists in the current directory
     if os.path.exists(file_name):
         print ("skip since the file already exists in the current directory")
@@ -76,13 +86,16 @@ def get_file_via_http(base_url='', file_name='', full_url=''):
     errStr = None
     for i in range(3):
         try:
+            req = Request(url, data=data, headers=headers)
             try:
                 context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
+                if certfile is not None:
+                    context.load_cert_chain(certfile, keyfile)
             except Exception:
                 # for old python
-                res = urlopen(url)
+                res = urlopen(req)
             else:
-                res = urlopen(url, context=context)
+                res = urlopen(req, context=context)
             with open(file_name, 'wb') as f:
                 f.write(res.read())
             isOK = True
@@ -132,3 +145,13 @@ def record_exec_directory():
     os.environ[ENV_HOME] = currentDir
     print ("--- Running in %s ---" % currentDir)
     return currentDir
+
+
+# get HPO sample
+def get_hpo_sample(task_id, sample_id):
+    pass
+
+
+# update HPO sample
+def update_hpo_sample(task_id, sample_id, loss):
+    return True
