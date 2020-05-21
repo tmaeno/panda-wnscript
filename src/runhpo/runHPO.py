@@ -16,7 +16,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory, \
-    get_hpo_sample, update_hpo_sample
+    get_hpo_sample, update_hpo_sample, update_events
 
 # error code
 EC_MissingArg  = 10
@@ -228,13 +228,14 @@ os.chdir(runDir)
 # preprocess or single-step execution
 eventFileName = '__panda_events.json'
 sampleFileName = '__hpo_sample.txt'
-commands_get_status_output('rm -rf {0}'.format(sampleFileName))
 if 'X509_USER_PROXY' in os.environ:
     certfile = os.environ['X509_USER_PROXY']
 else:
     certfile = '/tmp/x509up_u{0}'.format(os.getuid())
 keyfile = certfile
 if not postprocess:
+    commands_get_status_output('rm -rf {0}'.format(eventFileName))
+    commands_get_status_output('rm -rf {0}'.format(sampleFileName))
     # check input files
     inputFileMap = {}
     if inputFiles != []:
@@ -318,45 +319,56 @@ if not postprocess:
             print ('')
     # fetch an event
     print ("=== getting events from PanDA ===")
-    data = dict()
-    data['pandaID'] = pandaID
-    data['jobsetID'] = 0
-    data['taskID'] = taskID
-    data['nRanges'] = 1
-    url = pandaURL + '/server/panda/getEventRanges'
-    tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
-                                        headers={'Accept': 'application/json'},
-                                        certfile=certfile, keyfile=keyfile)
-    if not tmpStat:
-        print ("ERROR : " + tmpOut)
-        sys.exit(EC_WGET)
-    with open(eventFileName) as f:
-        print(f.read())
-    print ('')
-    # convert to dict
-    try:
+    for iii in range(10):
+        data = dict()
+        data['pandaID'] = pandaID
+        data['jobsetID'] = 0
+        data['taskID'] = taskID
+        data['nRanges'] = 1
+        url = pandaURL + '/server/panda/getEventRanges'
+        tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
+                                            headers={'Accept': 'application/json'},
+                                            certfile=certfile, keyfile=keyfile)
+        if not tmpStat:
+            print ("ERROR : " + tmpOut)
+            sys.exit(EC_WGET)
         with open(eventFileName) as f:
-            event_dict = json.load(f)
-            for event in event_dict['eventRanges']:
+            print(f.read())
+        print ('')
+        # convert to dict
+        try:
+            with open(eventFileName) as f:
+                event_dict = json.load(f)
+                # no events
+                if not event_dict['eventRanges']:
+                    break
+                event = event_dict['eventRanges'][0]
                 event_id = event['eventRangeID']
                 sample_id = event_id.split('-')[3]
                 print (" got eventID={0} sampleID={1}\n".format(event_id, sample_id))
-                with open(sampleFileName, 'w') as wf:
-                    wf.write('{0},{1}'.format(event_id, sample_id))
                 # check with iDDS
                 print ("\n=== getting HP samples from iDDS ===")
                 tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
                 if not tmpStat:
                     raise RuntimeError(tmpOut)
                 print ("\n got {0}".format(str(tmpOut)))
-                with open(inSampleFile, 'w') as wf:
-                    json.dump(tmpOut, wf)
-                break
-    except RuntimeError as e:
-        print ("ERROR: failed to get a HP sample from iDDS. {0}".format(e.message))
-    except Exception as e:
-        print ("ERROR: failed to get an event from PanDA. {0}".format(str(e)))
-        sys.exit(EC_EVENT)
+                if tmpOut['loss'] is not None:
+                    print ("\n already evaluated")
+                    print ("\n=== updating events in PanDA ===")
+                    update_events(pandaURL, event_id, 'finished', certfile, keyfile)
+                    print ('')
+                else:
+                    print ("\n to evaluate")
+                    with open(sampleFileName, 'w') as wf:
+                        wf.write('{0},{1}'.format(event_id, sample_id))
+                    with open(inSampleFile, 'w') as wf:
+                        json.dump(tmpOut['parameters'], wf)
+                    break
+        except RuntimeError as e:
+            print ("ERROR: failed to get a HP sample from iDDS. {0}".format(e.message))
+        except Exception as e:
+            print ("ERROR: failed to get an event from PanDA. {0}".format(str(e)))
+            sys.exit(EC_EVENT)
     # no event
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
@@ -477,21 +489,7 @@ if loss is not None:
         print ('ERROR: {0}\n'.format(tmpOut))
     else:
         print ("\n=== updating events in PanDA ===")
-        updateEventFileName = '__update_event.json'
-        commands_get_status_output('rm -rf %s' % updateEventFileName)
-        # update event
-        data = dict()
-        data['eventRangeID'] = event_id
-        data['eventStatus'] = 'finished'
-        data = {'eventRanges': json.dumps([data]), 'version': 1}
-        url = pandaURL + '/server/panda/updateEventRanges'
-        tmpStat, tmpOut = get_file_via_http(file_name=updateEventFileName, full_url=url, data=data,
-                                            headers={'Accept': 'application/json'},
-                                            certfile=certfile, keyfile=keyfile)
-        print ('\nstatus={0} out={1}'.format(tmpStat, tmpOut))
-        if tmpStat:
-            with open(updateEventFileName) as f:
-                print(f.read())
+        update_events(pandaURL, event_id, 'finished', certfile, keyfile)
         print ('')
 
 # add user job metadata

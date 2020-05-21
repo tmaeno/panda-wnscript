@@ -198,3 +198,23 @@ def update_hpo_sample(idds_url, task_id, sample_id, loss):
         errStr = "failed to update the sample (ID={0}) : {1}".format(sample_id, str(e))
         return False, errStr
     return False, "cannot update the sample (ID={0}) since status is missing".format(sample_id)
+
+
+# update events
+def update_events(panda_url, event_id, status, certfile, keyfile):
+    updateEventFileName = '__update_event.json'
+    commands_get_status_output('rm -rf %s' % updateEventFileName)
+    # update event
+    data = dict()
+    data['eventRangeID'] = event_id
+    data['eventStatus'] = status
+    data = {'eventRanges': json.dumps([data]), 'version': 1}
+    url = panda_url + '/server/panda/updateEventRanges'
+    tmpStat, tmpOut = get_file_via_http(file_name=updateEventFileName, full_url=url, data=data,
+                                        headers={'Accept': 'application/json'},
+                                        certfile=certfile, keyfile=keyfile)
+    print ('\nstatus={0} out={1}'.format(tmpStat, tmpOut))
+    if tmpStat:
+        with open(updateEventFileName) as f:
+            print (f.read())
+
