@@ -290,39 +290,30 @@ if not postprocess:
         if writeInputToTxtMap != {}:
             print ("=== write input to file ===")
         if inMap == {}:
-            inStr = ''
-            for inputFile in inputFiles:
-                inStr += "%s," % inputFile
-            inStr = inStr[:-1]
+            inStr = ','.join(inputFiles)
             # replace
             newJobParams = newJobParams.replace('%IN',inStr)
             # write to file
             tmpKeyName = 'IN'
             if tmpKeyName in writeInputToTxtMap:
                 commands_get_status_output('rm -f %s' % writeInputToTxtMap[tmpKeyName])
-                tmpInFile = open(writeInputToTxtMap[tmpKeyName],'w')
-                tmpInFile.write(inStr)
-                tmpInFile.close()
-                print ("%s to %s : %s" % (tmpKeyName,writeInputToTxtMap[tmpKeyName],inStr))
+                with open(writeInputToTxtMap[tmpKeyName],'w') as f:
+                    json.dump(inputFiles, f)
+                print ("%s to %s : %s" % (tmpKeyName, writeInputToTxtMap[tmpKeyName], str(inputFiles)))
         else:
             # multiple inputs
             for tmpToken in inMap:
                 tmpList = inMap[tmpToken]
-                inStr = ''
-                for inputFile in tmpList:
-                    if inputFile in inputFileMap:
-                        inStr += "%s," % inputFileMap[inputFile]
-                inStr = inStr[:-1] + ' '
+                inStr = ','.join(tmpList) + ' '
                 # replace
                 newJobParams = re.sub('%'+tmpToken+'(?P<sname> |$|\"|\')',inStr+'\g<sname>',newJobParams)
                 # write to file
                 tmpKeyName = tmpToken
                 if tmpKeyName in writeInputToTxtMap:
                     commands_get_status_output('rm -f %s' % writeInputToTxtMap[tmpKeyName])
-                    tmpInFile = open(writeInputToTxtMap[tmpKeyName],'w')
-                    tmpInFile.write(inStr)
-                    tmpInFile.close()
-                    print ("%s to %s : %s" % (tmpKeyName,writeInputToTxtMap[tmpKeyName],inStr))
+                    with open(writeInputToTxtMap[tmpKeyName], 'w') as f:
+                        json.dump(tmpList, f)
+                    print ("%s to %s : %s" % (tmpKeyName, writeInputToTxtMap[tmpKeyName], str(tmpList)))
         if writeInputToTxtMap != {}:
             print ('')
     # fetch an event
@@ -357,7 +348,7 @@ if not postprocess:
                 tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
                 if not tmpStat:
                     raise RuntimeError(tmpOut)
-                print ("\ngot {0}".format(str(tmpOut)))
+                print ("\n got {0}".format(str(tmpOut)))
                 with open(inSampleFile, 'w') as wf:
                     json.dump(tmpOut, wf)
                 break
