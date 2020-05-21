@@ -31,6 +31,7 @@ print (time.ctime())
 debugFlag    = False
 libraries    = ''
 outputFile   = 'out.json'
+inSampleFile = 'input_sample.json'
 jobParams    = ''
 inputFiles   = []
 inputGUIDs   = []
@@ -46,10 +47,10 @@ writeInputToTxt = ''
 scriptName = None
 preprocess = False
 postprocess = False
-pandaID = None
-taskID = None
+pandaID = os.environ.get('PandaID')
+taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
-iddsURL = ''
+iddsURL = 'https://aipanda182.cern.ch:443'
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
@@ -60,6 +61,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "usePFCTurl", "accessmode=",
                             "writeInputToTxt=",
                             "pandaID=", "taskID=",
+                            "inSampleFile=",
                             "preprocess", "postprocess"
                             ])
 for o, a in opts:
@@ -105,6 +107,8 @@ for o, a in opts:
         pandaURL = a
     if o == '--iddsURL':
         iddsURL = a
+    if o == '--inSampleFile':
+        inSampleFile = a
 
 # dump parameter
 try:
@@ -332,7 +336,6 @@ if not postprocess:
     tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
                                         headers={'Accept': 'application/json'},
                                         certfile=certfile, keyfile=keyfile)
-    print ('\nstatus={0} out={1}'.format(tmpStat, tmpOut))
     if not tmpStat:
         print ("ERROR : " + tmpOut)
         sys.exit(EC_WGET)
@@ -345,12 +348,21 @@ if not postprocess:
             event_dict = json.load(f)
             for event in event_dict['eventRanges']:
                 event_id = event['eventRangeID']
-                sample_id = int(event_id.split('-')[3])
+                sample_id = event_id.split('-')[3]
                 print (" got eventID={0} sampleID={1}\n".format(event_id, sample_id))
                 with open(sampleFileName, 'w') as wf:
                     wf.write('{0},{1}'.format(event_id, sample_id))
                 # check with iDDS
+                print ("\n=== getting HP samples from iDDS ===")
+                tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
+                if not tmpStat:
+                    raise RuntimeError(tmpOut)
+                print ("\ngot {0}".format(str(tmpOut)))
+                with open(inSampleFile, 'w') as wf:
+                    json.dump(tmpOut, wf)
                 break
+    except RuntimeError as e:
+        print ("ERROR: failed to get a HP sample from iDDS. {0}".format(e.message))
     except Exception as e:
         print ("ERROR: failed to get an event from PanDA. {0}".format(str(e)))
         sys.exit(EC_EVENT)
@@ -469,10 +481,11 @@ print ('')
 # report loss
 if loss is not None:
     print ("=== reporting loss to iDDS ===")
-    tmpStat = update_hpo_sample(taskID, sample_id, loss)
-    print ('status={0}\n'.format(tmpStat))
-    if tmpStat:
-        print ("=== updating events in PanDA ===")
+    tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss)
+    if not tmpStat:
+        print ('ERROR: {0}\n'.format(tmpOut))
+    else:
+        print ("\n=== updating events in PanDA ===")
         updateEventFileName = '__update_event.json'
         commands_get_status_output('rm -rf %s' % updateEventFileName)
         # update event

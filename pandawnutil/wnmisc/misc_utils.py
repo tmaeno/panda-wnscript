@@ -54,7 +54,7 @@ def add_user_job_metadata():
 
 # get file via http
 def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers=None,
-                      certfile=None, keyfile=None):
+                      certfile=None, keyfile=None, method=None):
     if full_url == '':
         url = "%s/cache/%s" % (base_url, file_name)
     else:
@@ -86,7 +86,17 @@ def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers
     errStr = None
     for i in range(3):
         try:
-            req = Request(url, data=data, headers=headers)
+            if method is None:
+                req = Request(url, data=data, headers=headers)
+            else:
+                try:
+                    req = Request(url, data=data, headers=headers, method=method)
+                except Exception:
+                    # for python 2
+                    class MyRequest(Request):
+                        def get_method(self, *args, **kwargs):
+                            return method
+                    req = MyRequest(url, data=data, headers=headers)
             try:
                 context = ssl.SSLContext(ssl.PROTOCOL_SSLv23)
                 if certfile is not None:
@@ -109,7 +119,7 @@ def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers
             errStr = str(e)
             time.sleep(30)
     if not isOK:
-        return False, "Cannot download the user sandbox with {0}".format(errStr)
+        return False, "Failed with {0}".format(errStr)
     if not os.path.exists(file_name):
         return False, 'Unable to fetch %s from web' % file_name
     print ("succeeded")
@@ -148,10 +158,43 @@ def record_exec_directory():
 
 
 # get HPO sample
-def get_hpo_sample(task_id, sample_id):
-    pass
+def get_hpo_sample(idds_url, task_id, sample_id):
+    url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', 'null', 'null')
+    file_name = '__tmp_get.out'
+    s, o = get_file_via_http(file_name=file_name, full_url=url)
+    if not s:
+        return False, o
+    try:
+        with open(file_name) as f:
+            print ('')
+            print(f.read())
+            f.seek(0)
+            tmp_dict = json.load(f)
+            for i in tmp_dict:
+                if i['id'] == sample_id:
+                    return True, i
+    except Exception as e:
+        errStr = "failed to get the sample (ID={0}) : {1}".format(sample_id, str(e))
+        return False, errStr
+    return False, "cannot get the sample (ID={0}) since it is unavailable".format(sample_id)
 
 
 # update HPO sample
-def update_hpo_sample(task_id, sample_id, loss):
-    return True
+def update_hpo_sample(idds_url, task_id, sample_id, loss):
+    url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', str(sample_id), str(loss))
+    file_name = '__tmp_update.out'
+    s, o = get_file_via_http(file_name=file_name, full_url=url, method='PUT')
+    if not s:
+        return False, o
+    try:
+        with open(file_name) as f:
+            print ('')
+            print(f.read())
+            f.seek(0)
+            tmp_dict = json.load(f)
+            if tmp_dict['status'] == 0:
+                return True, None
+    except Exception as e:
+        errStr = "failed to update the sample (ID={0}) : {1}".format(sample_id, str(e))
+        return False, errStr
+    return False, "cannot update the sample (ID={0}) since status is missing".format(sample_id)
