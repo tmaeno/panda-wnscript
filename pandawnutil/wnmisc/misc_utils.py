@@ -19,9 +19,8 @@ ENV_WORK_DIR = 'PAYLOAD_INPUT_DIR'
 
 
 # add user job metadata
-def add_user_job_metadata():
+def add_user_job_metadata(userJobMetadata='userJobMetadata.json'):
     # check user metadata
-    userJobMetadata = 'userJobMetadata.json'
     if not os.path.exists(userJobMetadata):
         return
     # size check
@@ -30,8 +29,11 @@ def add_user_job_metadata():
         return
     merged_dict = dict()
     # get user metadata
+    print ("\n=== user metadata in {0} ===".format(userJobMetadata))
     try:
         with open(userJobMetadata) as f:
+            print(f.read())
+            f.seek(0)
             tmp_dict = json.load(f)
     except Exception:
         print ("ERROR : user job metadata is corrupted")

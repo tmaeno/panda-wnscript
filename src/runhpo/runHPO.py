@@ -47,6 +47,7 @@ writeInputToTxt = ''
 scriptName = None
 preprocess = False
 postprocess = False
+outMetaFile = 'out_metadata.json'
 pandaID = os.environ.get('PandaID')
 taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
@@ -61,7 +62,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "usePFCTurl", "accessmode=",
                             "writeInputToTxt=",
                             "pandaID=", "taskID=",
-                            "inSampleFile=",
+                            "inSampleFile=", "outMetaFile=",
                             "preprocess", "postprocess"
                             ])
 for o, a in opts:
@@ -109,6 +110,8 @@ for o, a in opts:
         iddsURL = a
     if o == '--inSampleFile':
         inSampleFile = a
+    if o == '--outMetaFile':
+        outMetaFile = a
 
 # dump parameter
 try:
@@ -133,6 +136,10 @@ try:
     print ("writeInputToTxt",writeInputToTxt)
     print ("preprocess", preprocess)
     print ("postprocess", postprocess)
+    print ("pandaURL", pandaURL)
+    print ("iddsURL", iddsURL)
+    print ("inSampleFile", inSampleFile)
+    print ("outMetaFile", outMetaFile)
     print ("===================\n")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -495,7 +502,7 @@ if loss is not None:
 # add user job metadata
 try:
     from pandawnutil.wnmisc import misc_utils
-    misc_utils.add_user_job_metadata()
+    misc_utils.add_user_job_metadata(outMetaFile)
 except Exception:
     pass
 
