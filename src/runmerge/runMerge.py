@@ -192,7 +192,7 @@ def __cat_file__(fpath):
 
         f.close()
 
-def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', useFileStager=False):
+def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', dumpFile=None):
     '''
     merging files with hmerge
     '''
@@ -210,17 +210,13 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', useFileStager=False):
 
     cmd += ' export PATH=.:$PATH;'
     cmd += ' hmerge -f'
-    
-    if useFileStager:
-        cmd += ' -t'
-
-        ## TODO: detect local protocol on demand
-        protocol = 'lcgcp'
-
-        cmd += ' -p %s' % protocol
-
     cmd += ' -o %s' % outputFile
     cmd += ' %s'    % ' '.join(inputFiles)
+
+    if dumpFile is not None:
+        dumpFile.write(cmd + '\n')
+        dumpFile.write('echo\n')
+        return EC
 
     rc, output = __exec__(cmd, mergelog=True)
 
@@ -230,12 +226,20 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', useFileStager=False):
 
     return EC
 
-def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
+def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, dumpFile=None):
     '''
     merging (tgzed) files into a tgz tarball
     '''
 
     EC = 0
+
+    if dumpFile is not None:
+        for fname in inputFiles:
+            dumpFile.write('tar rvfh tmp_{0} {1}\n'.format(outputFile, fname))
+        dumpFile.write('gzip -f tmp_{0}\n'.format(outputFile))
+        dumpFile.write('mv tmp_{0}.gz {0}\n'.format(outputFile))
+        dumpFile.write('echo\n')
+        return EC
 
     print ('merging with tgz ...')
 
@@ -313,7 +317,7 @@ def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
     return EC
 
-def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
+def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, dumpFile=None):
     '''
     merging files with functions provided by PATJobTransforms
     '''
@@ -345,6 +349,11 @@ def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
         cmd += ' autoConfiguration=everything'
 
+        if dumpFile is not None:
+            dumpFile.write(cmd + '\n')
+            dumpFile.write('echo\n')
+            return EC
+
         rc,output = __exec__(cmd, mergelog=True)
 
         if rc != 0:
@@ -353,7 +362,7 @@ def __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager=False):
 
     return EC
 
-def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager=False):
+def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, dumpFile=None):
     '''
     merging files using user provided script
     '''
@@ -376,6 +385,10 @@ def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager=F
     cmd += ' export PATH=.:$PATH;'
     cmd += ' %s' % userCmd_new
 
+    if dumpFile is not None:
+        dumpFile.write(cmd + '\n')
+        dumpFile.write('echo\n')
+        return EC
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
@@ -384,7 +397,7 @@ def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager=F
 
     return EC
 
-def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=None, useFileStager=False):
+def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=None, dumpFile=None):
     '''
     all-in-one function to run different type of merging algorithms
     '''
@@ -392,17 +405,17 @@ def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=Non
     EC = 0
 
     if inputType in ['hist','ntuple']:
-        EC = __merge_root__(inputFiles, outputFile, cmdEnvSetup, useFileStager)
+        EC = __merge_root__(inputFiles, outputFile, cmdEnvSetup, dumpFile)
 
     elif inputType in ['pool']:
-        EC = __merge_trf__(inputFiles, outputFile, cmdEnvSetup, useFileStager)
+        EC = __merge_trf__(inputFiles, outputFile, cmdEnvSetup, dumpFile)
 
     elif inputType in ['log', 'text']:
-        EC = __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, useFileStager)
+        EC = __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, dumpFile)
 
     elif inputType in ['user']:
         if userCmd:
-            EC = __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, useFileStager)
+            EC = __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, dumpFile)
         else:
             EC = EC_MERGE_SCRIPTNOFOUND
     else:
@@ -485,6 +498,8 @@ if __name__ == "__main__":
     parentDS   = ''
     parentContainer = ''
     outputDS   = ''
+    preprocess = False
+    postprocess = False
 
     # command-line argument parsing
     opts = None
@@ -502,7 +517,8 @@ if __name__ == "__main__":
                                     "dbrFile=","dbrRun=","notExpandDBR",
                                     "useFileStager", "usePFCTurl", "accessmode=",
                                     "skipInputByRetry=","writeInputToTxt=",
-                                    "rootVer=","enable-jem","jem-config=","useCMake"
+                                    "rootVer=","enable-jem","jem-config=","useCMake",
+                                    "preprocess", "postprocess"
                                     ])
     except getopt.GetoptError as err:
         print (str(err))
@@ -574,6 +590,10 @@ if __name__ == "__main__":
             outputDS = a
         if o == "--useCMake":
             useCMake = True
+        if o == "--preprocess":
+            preprocess = True
+        if o == "--postprocess":
+            postprocess = True
 
     # dump parameter
     try:
@@ -610,90 +630,82 @@ if __name__ == "__main__":
         print ("rootVer",rootVer)
         print ("useRootCore",useRootCore)
         print ("useCMake",useCMake)
+        print ("preprocess", preprocess)
+        print ("postprocess", postprocess)
         print ("===================")
     except Exception as e:
         print ('ERROR: missing parameters : %s' % str(e))
         sys.exit(EC_MissingArg)
 
-    ## checking parameters
-    """        
-    if not outputFile:
-        print 'ERROR: output file not specified, use -o to specify it'
-        sys.exit(EC_MissingArg)
-
-    if inputType.lower() not in SUPP_TYPES:
-        print 'ERROR: input type %s not supported for merging' % inputType
-        sys.exit(EC_ITYPE_UNSUPPORTED)
-
-    if inputList:
-        if not os.path.exists(inputList):
-            print 'ERROR: input list file %s not available' % inputList
-            sys.exit(EC_IFILE_UNAVAILABLE)
-        else:
-            f = open( inputList, 'r')
-            for l in map(lambda x:x.strip(), f.readlines()):
-                inputFiles.append(l)
-            f.close()
-    """
-    ## parsing PoolFileCatalog.xml produced by pilot
-    turlsPFC = __resolvePoolFileCatalog__(PFC="PoolFileCatalog.xml")
-    print (turlsPFC)
-
-    ## getting TURLs for direct I/O
-    directPFNs = {}
-    if directIn:
-        # Use the TURLs from PoolFileCatalog.xml created by pilot
-        print ("===== GUIDs and TURLs in PFC =====")
+    if not postprocess:
+        ## parsing PoolFileCatalog.xml produced by pilot
+        turlsPFC = __resolvePoolFileCatalog__(PFC="PoolFileCatalog.xml")
         print (turlsPFC)
-        directTmp = turlsPFC
-        # collect LFNs
-        for id in directTmp.keys():
-            lfn = directTmp[id].split('/')[-1]
-            lfn = re.sub('__DQ2-\d+$','',lfn)
-            lfn = re.sub('^([^:]+:)','', lfn)
-            directPFNs[lfn] = directTmp[id]
 
-        print (directPFNs)
+        ## getting TURLs for direct I/O
+        directPFNs = {}
+        if directIn:
+            # Use the TURLs from PoolFileCatalog.xml created by pilot
+            print ("===== GUIDs and TURLs in PFC =====")
+            print (turlsPFC)
+            directTmp = turlsPFC
+            # collect LFNs
+            for id in directTmp.keys():
+                lfn = directTmp[id].split('/')[-1]
+                lfn = re.sub('__DQ2-\d+$','',lfn)
+                lfn = re.sub('^([^:]+:)','', lfn)
+                directPFNs[lfn] = directTmp[id]
+            print (directPFNs)
+
+        # get archiveJobO
+        if archiveJobO != '':
+            tmpStat = __fetch_toolbox__('%s/cache/%s' % (sourceURL,archiveJobO))
+            if not tmpStat:
+                print ('ERROR : failed to download %s' % archiveJobO)
+                sys.exit(EC_MERGE_ERROR)
 
     # save current dir
     currentDir = os.getcwd()
     currentDirFiles = os.listdir('.')
 
-    # get archiveJobO
-    if archiveJobO != '':
-        tmpStat = __fetch_toolbox__('%s/cache/%s' % (sourceURL,archiveJobO))
-        if not tmpStat:
-            print ('ERROR : failed to download %s' % archiveJobO)
-            sys.exit(EC_MERGE_ERROR)
     
     ## create and change to workdir
     print ('')
     print ("Running in %s " % currentDir)
     workDir = os.path.join(currentDir, 'workDir')
-    shutil.rmtree(workDir, ignore_errors=True)
-    os.makedirs(workDir)
+    if not postprocess:
+        shutil.rmtree(workDir, ignore_errors=True)
+        os.makedirs(workDir)
     os.chdir(workDir)
 
-    ## expand library tarballs
-    libs = []
-    libs.append( libTgz )
-    libs.append( libraries )
-    libs.append( archiveJobO )
+    if not postprocess:
+        ## expand library tarballs
+        libs = []
+        libs.append( libTgz )
+        libs.append( libraries )
+        libs.append( archiveJobO )
 
-    for lib in libs:
-        if lib == '':
-            pass
-        elif lib.startswith('/'):
-            print (commands_get_status_output('tar xvfzm %s' % lib)[-1])
-        else:
-            print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,lib))[-1])
+        for lib in libs:
+            if lib == '':
+                pass
+            elif lib.startswith('/'):
+                print (commands_get_status_output('tar xvfzm %s' % lib)[-1])
+            else:
+                print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,lib))[-1])
 
-    ## compose athena/root environment setup command
-    cmdEnvSetup = __cmd_setup_env__(workDir, rootVer)
+        ## compose athena/root environment setup command
+        cmdEnvSetup = __cmd_setup_env__(workDir, rootVer)
 
-    ## create and change to rundir
-    commands_get_status_output('mkdir -p %s' % runDir)
+        ## create and change to rundir
+        commands_get_status_output('mkdir -p %s' % runDir)
     os.chdir(runDir)
+
+    # make dump file for preprocess
+    dumpFileName = os.path.join(currentDir, '__run_main_exec.sh')
+    dumpFile = None
+    if preprocess:
+        dumpFile = open(dumpFileName, 'w')
+        dumpFile.write('cd {0}\n'.format(os.path.relpath(os.getcwd(), currentDir)))
 
     # loop over all args
     EC = EC_OK
@@ -716,53 +728,68 @@ if __name__ == "__main__":
             continue
         inputFiles = tmpInputs.split(',')
         inputType = __getMergeType__(inputFiles,mexec)
-        print ('')
-        print (">>> start new chunk <<<")
-        print ("=== params ===")
-        print ('inputFiles',inputFiles)
-        print ('outputFile',outputFile)
-        print ('inputType',inputType)
-        ## checking input file list and creating new input file list according to the IO type
-        if inputFiles != []:
-            print ("=== check input files ===")
-            newInputs = []
-            inputFileMap = {}
-            for inputFile in inputFiles:
-                # direct reading
-                foundFlag = False
-                if directIn:
-                    if inputFile in directPFNs:
-                        newInputs.append(directPFNs[inputFile])
-                        foundFlag = True
-                        inputFileMap[inputFile] = directPFNs[inputFile]
-                else:
-                    # make symlinks to input files
-                    if inputFile in currentDirFiles:
-                        os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
-                        newInputs.append(inputFile)
-                        foundFlag = True
-                        inputFileMap[inputFile] = inputFile
-                if not foundFlag:
-                    print ('%s not exist' % inputFile)
+        if not postprocess:
+            print (">>> start new chunk <<<")
+            print ("=== params ===")
+            print ('inputFiles',inputFiles)
+            print ('outputFile',outputFile)
+            print ('inputType',inputType)
+            ## checking input file list and creating new input file list according to the IO type
+            if inputFiles != []:
+                print ("=== check input files ===")
+                newInputs = []
+                inputFileMap = {}
+                for inputFile in inputFiles:
+                    # direct reading
+                    foundFlag = False
+                    if directIn:
+                        if inputFile in directPFNs:
+                            newInputs.append(directPFNs[inputFile])
+                            foundFlag = True
+                            inputFileMap[inputFile] = directPFNs[inputFile]
+                    else:
+                        # make symlinks to input files
+                        if inputFile in currentDirFiles:
+                            os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
+                            newInputs.append(inputFile)
+                            foundFlag = True
+                            inputFileMap[inputFile] = inputFile
+                    if not foundFlag:
+                        print ('%s not exist' % inputFile)
 
-            inputFiles = newInputs
-            if len(inputFiles) == 0:
-                print ('ERROR : No input file is available')
-                sys.exit(EC_NoInput)
-            print ("=== new inputFiles ===")
-            print (inputFiles)
-        print ("=== run merging ===")
-        ## run merging
-        EC = __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup=cmdEnvSetup, userCmd=mexec, useFileStager=useFileStager)
-        if EC != EC_OK:
-            print ("run_merge failed with %s" % EC)
-            break
-        print ("run_merge exited with %s" % EC)
-        print ('')
+                inputFiles = newInputs
+                if len(inputFiles) == 0:
+                    print ('ERROR : No input file is available')
+                    sys.exit(EC_NoInput)
+                print ("=== new inputFiles ===")
+                print (inputFiles)
+            if not preprocess:
+                print ("=== run merging ===")
+            else:
+                print ("=== writing command ===")
+            ## run merging
+            EC = __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup=cmdEnvSetup, userCmd=mexec,
+                               dumpFile=dumpFile)
+            if EC != EC_OK:
+                print ("run_merge failed with %s" % EC)
+                break
+            if not preprocess:
+                print ("run_merge exited with %s" % EC)
+            else:
+                print ("done")
+            print ('')
         outputFiles.append(outputFile)
 
+    if preprocess:
+        print ("=== Results ===")
+        dumpFile.close()
+        commands_get_status_output('chmod +x {0}'.format(dumpFileName))
+        print ('merge preprocess succeeded')
+        print ('produced {0}'.format(dumpFileName))
+        sys.exit(0)
+
     print ('')
-    print ("=== ls %s ===" % runDir)
+    print ("=== ls in run dir : %s (%s) ===" % (runDir, os.getcwd()))
     print (commands_get_status_output('ls -l')[-1])
     print ('')
 
@@ -798,11 +825,15 @@ if __name__ == "__main__":
     commands_get_status_output('mv %s %s' % (pfcName,currentDir))
 
     # copy all log files from merging program
+    print ("=== copy log files ===")
     __exec__("cp *.log %s" % currentDir)
 
     # go back to current dir
     os.chdir(currentDir)
-    
+
+    print ("=== ls in %s ===" % os.getcwd())
+    print (commands_get_status_output('ls -l')[-1])
+    print ('')
     # remove work dir
     commands_get_status_output('rm -rf %s' % workDir)
 

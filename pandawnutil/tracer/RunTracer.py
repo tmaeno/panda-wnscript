@@ -58,24 +58,24 @@ class RunTracer:
                                       stderr=subprocess.PIPE)
             out, err = p.communicate()
             if p.returncode != 0:
-                print (" com : {0} failed with {1}".format(step1, err))
+                #print (" com : {0} failed with {1}".format(step1, err))
                 isFailed = True
             else:
                 p = subprocess.Popen(step2.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    print (" com : {0} failed with {1}".format(step2, err))
+                    #print (" com : {0} failed with {1}".format(step2, err))
                     isFailed = True
             # make dummy if failed
             if isFailed:        
-                print ("  %s failed" % archOpt)
+                #print ("  %s failed" % archOpt)
                 p = subprocess.Popen(stepd.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    print (" com : {0} failed with {1}".format(stepd, err))
-                    print ("WARNING: %s is not supported" % archOpt)
+                    #print (" com : {0} failed with {1}".format(stepd, err))
+                    print ("  %s is not supported" % archOpt)
                 else:
                     print ("  %s uses dummy" % archOpt)
             else:
