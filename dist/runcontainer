@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.13'
+VERSION = '1.1.14'
 
 
 def main():
@@ -79,6 +79,9 @@ def check_usernamespaces():
     user_ns = 0
 
     for file in glob.iglob('/etc/sysctl.d/*.conf'):
+        if not os.access(file, os.R_OK):
+            logging.warn('File {} not readable'.format(file))
+            continue
         for line in open(file, 'r'):
             if re.search('user.max_user_namespaces', line):
                 ns_keyval = line.split('=')
@@ -86,11 +89,10 @@ def check_usernamespaces():
                     user_ns = ns_keyval[1].strip()
                     logging.info('File: {0}, Line: {1}, Conf: {2}'.format(file, line.strip(), user_ns))
 
-
-#    if os.path.exists('/proc/sys/user/max_user_namespaces'):
-#        f = open('/proc/sys/user/max_user_namespaces','r')
-#        user_ns = f.readline().strip()
-#        logging.debug('/proc/sys/user/max_user_namespaces exists')
+    if os.path.exists('/proc/sys/user/max_user_namespaces'):
+        f = open('/proc/sys/user/max_user_namespaces','r')
+        proc_user_ns = f.readline().strip()
+        logging.info('/proc/sys/user/max_user_namespaces exists. User NS value: {}. Not using it yet.'.format(proc_user_ns))
 
     # Docker containers have the value in /proc >0 by default but don't have necessarily
     # the right permission to actually mount /proc inside a singularity container
@@ -232,7 +234,10 @@ def singularity_user_proxy():
 
     logging.debug('X509_CERT_DIR={} X509_USER_PROXY={}'.format(os.environ['X509_CERT_DIR'],os.environ['X509_USER_PROXY']))
 
-    return '-B {}:{}'.format(os.environ['X509_CERT_DIR'], ca_cert_dir)
+    # Some sites mount /etc/grid-security/certificates in the configuration when I try to mount as well it fails
+    # Changing location of X509_CERT_DIR inside the container.
+    os.environ['SINGULARITYENV_X509_CERT_DIR'] = '/var{}'.format(ca_cert_dir)
+    return '-B {}:{}'.format(os.environ['X509_CERT_DIR'], os.environ['SINGULARITYENV_X509_CERT_DIR'])
 
 def singularity_envvars():
 
@@ -263,7 +268,7 @@ def singularity_container(data={}):
     # Options for the command line string have default values or are mandatory
 
     # Base singularity command
-    debug = '--debug' if args.debug else '-s'
+    debug = '--debug' if args.debug else ''
     singularity_base = 'singularity {} exec -C'.format(debug)
 
     # Replace input place holders
@@ -321,18 +326,41 @@ def execute(cmd=[]):
     ##############################################################
     # Run subprocess print stdout catch stderr in a generic way
     ch = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
-    ch_stdout, ch_stderr = ch.communicate()
-    for line in ch_stdout.decode(encoding='utf-8').split('\n'):
-        logging.info(line.strip())
 
-    if ch.returncode == 0 and len(ch_stderr) != 0:
-        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
-            logging.warn(line.strip())
-    elif ch.returncode != 0:
+    while ch.poll() == None:
+
+        if ch.stdout:
+
+            for line in iter(ch.stdout.readline,b''):
+                logging.info(line.strip())
+
+        if ch.returncode == None and ch.stderr:
+
+            for line in iter(ch.stderr.readline,b''):
+                logging.warn(line.strip())
+
+    if ch.returncode != 0:
         logging.error('Container execution failed with errors. Error code: {}'.format(ch.returncode))
-        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
-            logging.error(line.strip())
         sys.exit(ch.returncode)
+
+# Correctly reports errors, warns and info but it buffers...
+# 
+#def execute(cmd=[]):
+#    ch = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
+#    ch_stdout, ch_stderr = ch.communicate()
+#    
+#    for line in ch_stdout.decode(encoding='utf-8').split('\n'):
+#        logging.info(line.strip())
+#
+#    if ch.returncode == 0 and len(ch_stderr) != 0:
+#        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
+#            logging.warn(line.strip())
+#    elif ch.returncode != 0:
+#        logging.error('Container execution failed with errors. Error code: {}'.format(ch.returncode))
+#        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
+#            logging.error(line.strip())
+#        sys.exit(ch.returncode)
+
 
 
 def run_container():
