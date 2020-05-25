@@ -529,8 +529,9 @@ commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 # metrics
 if outMetricsFile is not None:
     newName, oldName = outMetricsFile.split('^')
-    newName = "%s_%s" % (newName, sample_id)
-    tmpStat, tmpOut = commands_get_status_output('mv %s %s/%s' % (oldName, currentDir, newName))
+    tmpOldName = "%s_%s" % (oldName, sample_id)
+    tmpStat, tmpOut = commands_get_status_output('mv {0} {1}; tar cvfz {2}/{3} {1}'.format(oldName, tmpOldName,
+                                                                                           currentDir, newName))
     # make job report
     if tmpStat == 0:
         if os.path.exists('jobReport.json'):
