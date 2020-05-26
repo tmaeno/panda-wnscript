@@ -39,7 +39,7 @@ import tarfile
 import xml.dom.minidom
 import json
 
-VERSION = '1.1.14'
+VERSION = '1.1.15'
 
 
 def main():
@@ -107,7 +107,7 @@ def check_usernamespaces():
 #            logging.info('User NS /proc and /etc/sysctl.d differ')
 #            logging.info('User NS might be misconfigured or we might be in a docker image with insufficient privileges')
 
-    return user_ns
+    return int(user_ns)
 
 
 def runtime_version():
@@ -139,7 +139,7 @@ def runtime_version():
 
     user_ns = check_usernamespaces()
 
-    if user_ns:
+    if user_ns > 0:
         logging.info('User namespaces is enabled. Checking if the runtime {} is in CVMFS'.format(runtime))
         if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
             os.environ['PATH'] = '{0}:{1}'.format(bin_path, os.environ['PATH'])
