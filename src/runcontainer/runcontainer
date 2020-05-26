@@ -86,13 +86,13 @@ def check_usernamespaces():
             if re.search('user.max_user_namespaces', line):
                 ns_keyval = line.split('=')
                 if 1 < len(ns_keyval):
-                    user_ns = ns_keyval[1].strip()
-                    logging.info('File: {0}, Line: {1}, Conf: {2}'.format(file, line.strip(), user_ns))
+                    sys_user_ns = ns_keyval[1].strip()
+                    logging.info('File: {0}, Line: {1}, Conf: {2}'.format(file, line.strip(), sys_user_ns))
 
     if os.path.exists('/proc/sys/user/max_user_namespaces'):
         f = open('/proc/sys/user/max_user_namespaces','r')
-        proc_user_ns = f.readline().strip()
-        logging.info('/proc/sys/user/max_user_namespaces exists. User NS value: {}. Not using it yet.'.format(proc_user_ns))
+        user_ns = f.readline().strip()
+        logging.info('/proc/sys/user/max_user_namespaces exists. User NS value: {}.'.format(user_ns))
 
     # Docker containers have the value in /proc >0 by default but don't have necessarily
     # the right permission to actually mount /proc inside a singularity container
