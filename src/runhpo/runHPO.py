@@ -48,10 +48,12 @@ scriptName = None
 preprocess = False
 postprocess = False
 outMetaFile = 'out_metadata.json'
+outMetricsFile = None
 pandaID = os.environ.get('PandaID')
 taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
 iddsURL = 'https://aipanda182.cern.ch:443'
+dryRun = False
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
@@ -63,6 +65,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "writeInputToTxt=",
                             "pandaID=", "taskID=",
                             "inSampleFile=", "outMetaFile=",
+                            "outMetricsFile=", "dryRun",
                             "preprocess", "postprocess"
                             ])
 for o, a in opts:
@@ -112,6 +115,10 @@ for o, a in opts:
         inSampleFile = a
     if o == '--outMetaFile':
         outMetaFile = a
+    if o == '--outMetricsFile':
+        outMetricsFile = a
+    if o == '--dryRun':
+        dryRun = True
 
 # dump parameter
 try:
@@ -140,6 +147,8 @@ try:
     print ("iddsURL", iddsURL)
     print ("inSampleFile", inSampleFile)
     print ("outMetaFile", outMetaFile)
+    print ("outMetricsFile", outMetricsFile)
+    print ("dryRun", dryRun)
     print ("===================\n")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -327,6 +336,12 @@ if not postprocess:
     # fetch an event
     print ("=== getting events from PanDA ===")
     for iii in range(10):
+        if dryRun:
+            sample_id = 123
+            event_id = '{0}-{1}-0-{2}-5'.format(taskID, pandaID, sample_id)
+            with open(sampleFileName, 'w') as f:
+                f.write('{0},{1}'.format(event_id, sample_id))
+            break
         data = dict()
         data['pandaID'] = pandaID
         data['jobsetID'] = 0
@@ -478,18 +493,20 @@ else:
             print (f.read())
             f.seek(0)
             out_dict = json.load(f)
-            if out_dict['status'] == 0:
+            if 'status' not in out_dict or out_dict['status'] == 0:
                 loss = out_dict['loss']
                 print ("got loss={0}".format(loss))
             else:
-                print ("ERROR: failed to evaluate. status={0} err={1}".format(out_dict['status'],
-                                                                              out_dict['error']))
+                tmpStr = "ERROR: failed to evaluate. status={0}".format(out_dict['status'])
+                if 'message' in out_dict:
+                    tmpStr = tmpStr + ' message={0}'.format(out_dict['message'])
+                print (tmpStr)
         except Exception as e:
             print ("ERROR: failed to get loss. {0}".format(str(e)))
 print ('')
 
 # report loss
-if loss is not None:
+if loss is not None and not dryRun:
     print ("=== reporting loss to iDDS ===")
     tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss)
     if not tmpStat:
@@ -509,6 +526,31 @@ except Exception:
 # copy results
 commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 
+# metrics
+if outMetricsFile is not None:
+    newName, oldName = outMetricsFile.split('^')
+    tmpOldName = "%s_%s" % (oldName, sample_id)
+    tmpStat, tmpOut = commands_get_status_output('mv {0} {1}; tar cvfz {2}/{3} {1}'.format(oldName, tmpOldName,
+                                                                                           currentDir, newName))
+    # make job report
+    if tmpStat == 0:
+        if os.path.exists('jobReport.json'):
+            with open('jobReport.json') as f:
+                job_report = json.load(f)
+        else:
+            job_report = {}
+        job_report.setdefault("files", {})
+        job_report["files"].setdefault("output", [])
+        job_report["files"]["output"].append({"subFiles": [
+            {
+                "file_guid": str(uuid.uuid4()),
+                "file_size": os.stat(os.path.join(currentDir, newName)).st_size,
+                "name": newName,
+                "nentries": 1,
+            }
+        ]})
+        with open('jobReport.json', 'w') as f:
+            json.dump(job_report, f)
 
 # create empty PoolFileCatalog.xml if it doesn't exist
 pfcName = 'PoolFileCatalog.xml'
