@@ -24,6 +24,7 @@ EC_NoInput     = 11
 EC_Tarball     = 143
 EC_WGET        = 146
 EC_EVENT       = 147
+EC_EXE_FAILED  = 150
 
 print ("=== start ===")
 print (time.ctime())
@@ -487,6 +488,7 @@ print ("=== getting loss from {0} ===".format(outputFile))
 loss = None
 if not os.path.exists(outputFile):
     print ("{0} doesn't exist".format(outputFile))
+    status = EC_EXE_FAILED
 else:
     with open(outputFile) as f:
         try:
@@ -503,6 +505,8 @@ else:
                 print (tmpStr)
         except Exception as e:
             print ("ERROR: failed to get loss. {0}".format(str(e)))
+    # copy results
+    commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 print ('')
 
 # report loss
@@ -522,9 +526,6 @@ try:
     misc_utils.add_user_job_metadata(outMetaFile)
 except Exception:
     pass
-
-# copy results
-commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 
 # metrics
 if outMetricsFile is not None:
