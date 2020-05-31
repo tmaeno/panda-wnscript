@@ -161,7 +161,7 @@ def record_exec_directory():
 
 # get HPO sample
 def get_hpo_sample(idds_url, task_id, sample_id):
-    url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', 'null', 'null')
+    url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', str(sample_id), 'null', 'null')
     file_name = '__tmp_get.out'
     s, o = get_file_via_http(file_name=file_name, full_url=url)
     if not s:
@@ -174,7 +174,7 @@ def get_hpo_sample(idds_url, task_id, sample_id):
             tmp_dict = json.load(f)
             for i in tmp_dict:
                 if i['id'] == sample_id:
-                    return True, i
+                    return True, tmp_dict
     except Exception as e:
         errStr = "failed to get the sample (ID={0}) : {1}".format(sample_id, str(e))
         return False, errStr
