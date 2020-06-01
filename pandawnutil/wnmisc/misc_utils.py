@@ -174,7 +174,7 @@ def get_hpo_sample(idds_url, task_id, sample_id):
             tmp_dict = json.load(f)
             for i in tmp_dict:
                 if i['id'] == sample_id:
-                    return True, tmp_dict
+                    return True, i
     except Exception as e:
         errStr = "failed to get the sample (ID={0}) : {1}".format(sample_id, str(e))
         return False, errStr
