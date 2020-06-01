@@ -51,6 +51,8 @@ postprocess = False
 outMetaFile = 'out_metadata.json'
 outMetricsFile = None
 pandaID = os.environ.get('PandaID')
+if pandaID is None:
+    pandaID = os.environ.get('PANDAID')
 taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
 iddsURL = 'https://aipanda182.cern.ch:443'
