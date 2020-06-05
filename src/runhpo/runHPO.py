@@ -55,7 +55,7 @@ if pandaID is None:
     pandaID = os.environ.get('PANDAID')
 taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
-iddsURL = 'https://aipanda182.cern.ch:443'
+iddsURL = 'https://iddsserver.cern.ch:443'
 dryRun = False
 
 # command-line parameters
