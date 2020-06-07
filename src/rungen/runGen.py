@@ -236,7 +236,7 @@ if not postprocess:
         print ("removed skipped files -> %s"% str(inputFiles))
 
     # scan LFC/LRC for direct reading
-    if directIn and not givenPFN:
+    if (directIn or preprocess) and not givenPFN:
         # Use the TURLs from PoolFileCatalog.xml created by pilot
         print ("===== GUIDs and TURLs in PFC =====")
         print (directTmpTurl)
@@ -267,6 +267,8 @@ if not postprocess:
 
     # expand jobOs if needed
     if archiveJobO != "" and (useAthenaPackages or libraries == ''):
+        print ('')
+        print ("=== getting sandbox ===")
         url = '%s/cache/%s' % (sourceURL, archiveJobO)
         tmpStat, tmpOut = get_file_via_http(full_url=url)
         if not tmpStat:
@@ -365,7 +367,7 @@ if not postprocess:
         for inputFile in inputFiles:
             # direct reading
             foundFlag = False
-            if directIn:
+            if directIn or (preprocess and not os.path.exists(os.path.join(currentDir,inputFile))):
                 if inputFile in directPFNs:
                     newInputs.append(directPFNs[inputFile])
                     foundFlag = True
@@ -431,7 +433,7 @@ if not postprocess:
     # add current dir to PATH
     os.environ['PATH'] = '.:'+os.environ['PATH']
 
-    print ("=== env variables ===")
+    print ("\n=== env variables ===")
     if dbrFile != '' and dbrSetupStr != '':
         # change env by DBR
         tmpTrfName = 'trf.%s.py' % str(uuid.uuid4())
@@ -530,8 +532,11 @@ if not postprocess:
     if preprocess:
         commands_get_status_output('chmod +x {0}'.format(tmpTrfName))
         print ("\n==== Result ====")
+        print ("produced {0}\n".format(tmpTrfName))
+        with open(tmpTrfName) as f:
+            print (f.read())
         print ("preprocessing sucessfully done")
-        print ("produced {0}".format(tmpTrfName))
+
         sys.exit(0)
 
     com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)
