@@ -542,8 +542,7 @@ if not postprocess:
         print ("produced {0}\n".format(tmpTrfName))
         with open(tmpTrfName) as f:
             print (f.read())
-        print ("preprocessing sucessfully done")
-
+        print ("preprocessing successfully done")
         sys.exit(0)
 
     com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)

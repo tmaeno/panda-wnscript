@@ -138,6 +138,8 @@ tagFileList  = []
 noExpandDBR  = False
 useCMake = False
 useAthenaMT = False
+preprocess = False
+postprocess = False
 
 opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                            ["pilotpars","debug","oldPrefix=","newPrefix=",
@@ -154,7 +156,8 @@ opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                             "skipInputByRetry=","tagFileList=",
                             "enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
-                            "noExpandDBR","useCMake","useAthenaMT"
+                            "noExpandDBR","useCMake","useAthenaMT",
+                            "preprocess", "postprocess"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -265,7 +268,10 @@ for o, a in opts:
         useCMake = True
     if o == "--useAthenaMT":
         useAthenaMT = True
-        
+    if o == "--preprocess":
+        preprocess = True
+    if o == "--postprocess":
+        postprocess = True
 
 # save current dir
 currentDir = record_exec_directory()
@@ -326,313 +332,319 @@ try:
     print ("noExpandDBR",noExpandDBR)
     print ("useCMake",useCMake)
     print ("useAthenaMT",useAthenaMT)
+    print ("preprocess", preprocess)
+    print ("postprocess", postprocess)
     print ("===================")
 except Exception:
     sys.exit(EC_MissingArg)
 
-# disable direct input for unsupported cases
-if directIn:
-    if useLocalIO:
-        # use local IO
-        directIn = False
-        print ("disabled directIn due to useLocalIO")
-    elif byteStream and newPrefix.startswith('root://'):
-        # BS on xrootd
-        directIn = False
-        print ("disabled directIn for xrootd/RAW")
+if not postprocess:
+    # disable direct input for unsupported cases
+    if directIn:
+        if useLocalIO:
+            # use local IO
+            directIn = False
+            print ("disabled directIn due to useLocalIO")
+        elif byteStream and newPrefix.startswith('root://'):
+            # BS on xrootd
+            directIn = False
+            print ("disabled directIn for xrootd/RAW")
 
-# remove skipped files
-if skipInputByRetry != []: 
-    tmpInputList = []
-    for tmpLFN in inputFiles:
-        if not tmpLFN in skipInputByRetry:
-            tmpInputList.append(tmpLFN)
-    inputFiles = tmpInputList
-    print ("removed skipped files -> %s" % str(inputFiles))
+    # remove skipped files
+    if skipInputByRetry != []:
+        tmpInputList = []
+        for tmpLFN in inputFiles:
+            if not tmpLFN in skipInputByRetry:
+                tmpInputList.append(tmpLFN)
+        inputFiles = tmpInputList
+        print ("removed skipped files -> %s" % str(inputFiles))
 
-# add "" in envvar
-try:
-    newString = '#!/bin/bash\n'
-    if envvarFile != '':
-        tmpEnvFile = open(envvarFile)
-        for line in tmpEnvFile:
-            # remove \n
-            line = line[:-1]
-            match = re.search('([^=]+)=(.*)',line)
-            if match is not None:
-                # add ""
-                newString += '%s="%s"\n' % (match.group(1),match.group(2))
-            else:
-                newString += '%s\n' % line
-        tmpEnvFile.close()
-        # overwrite
-        tmpEnvFile = open(envvarFile,'w')
-        tmpEnvFile.write(newString)
-        tmpEnvFile.close()
-except Exception as e:
-    print ('WARNING: changing envvar : %s' % str(e))
-
-
-# collect GUIDs from PoolFileCatalog
-guidMapFromPFC = {}
-directTmpTurl = {}
-try:
-    print ("===== PFC from pilot =====")
-    tmpPcFile = open("PoolFileCatalog.xml")
-    print (tmpPcFile.read())
-    tmpPcFile.close()
-    # parse XML
-    root  = xml.dom.minidom.parse("PoolFileCatalog.xml")
-    files = root.getElementsByTagName('File')
-    for file in files:
-        # get ID
-        id = str(file.getAttribute('ID'))
-        # get PFN node
-        physical = file.getElementsByTagName('physical')[0]
-        pfnNode  = physical.getElementsByTagName('pfn')[0]
-        # convert UTF8 to Raw
-        pfn = str(pfnNode.getAttribute('name'))
-        lfn = pfn.split('/')[-1]
-        lfn = re.sub('__DQ2-\d+$','',lfn)
-        lfn = re.sub('^([^:]+:)','', lfn)
-        lfn = re.sub('\?GoogleAccessId.*$','',lfn)
-        # append
-        guidMapFromPFC[lfn] = id
-        directTmpTurl[id] = pfn
-except Exception as e:
-    print ('ERROR : Failed to collect GUIDs : %s' % str(e))
-
-print ("===== GUIDs in PFC =====")
-print (guidMapFromPFC)
-    
-# check input files
-directPfnMap = {}
-directMetaMap = {}
-directPFNs = {}
-if directIn:
-    # Use the TURLs from PoolFileCatalog.xml created by pilot
-    print ("===== GUIDs and TURLs in PFC =====")
-    print (directTmpTurl)
-    directTmp = directTmpTurl
-    # set newPrefix to set copy tool in FileStager
-    if directTmp != {}:
-        # one PFN is enough since only the prefix is checked
-        newPrefix = directTmp.values()[0]
-    # collect LFNs
-    curFiles   = []
-    for id in directTmp.keys():
-        lfn = directTmp[id].split('/')[-1]
-        lfn = re.sub('^([^:]+:)','',lfn)
-        curFiles.append(lfn)
-        directPFNs[lfn] = directTmp[id]
-    directPfnMap = directTmp	
-elif givenPFN:
-    # collect LFNs
-    curFiles   = []
-    for lfn in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
-        curFiles.append(lfn)
-else:
-    curFiles = os.listdir('.')
-
-flagMinBias = False
-flagCavern  = False
-flagBeamGas = False
-flagBeamHalo= False
-
-if len(inputFiles) > 0 and (not shipInput):
-    tmpFiles = tuple(inputFiles)
-    for tmpF in tmpFiles:
-        findF = False
-        findName = ''
-        for curF in curFiles:
-            if re.search('^'+tmpF,curF) is not None:
-                findF = True
-                findName = curF
-                break
-        # remove if not exist
-        if not findF:
-            print ("%s not exist" % tmpF)
-            inputFiles.remove(tmpF)
-        # use URL
-        if directIn and findF:
-            inputFiles.remove(tmpF)
-            inputFiles.append(directPFNs[findName])
-    if len(inputFiles) == 0:
-        print ("No input file is available")
-        sys.exit(EC_NoInput)
-    if notSkipMissing and len(inputFiles) != len(tmpFiles):
-        print ("Some input files are missing")
-        sys.exit(EC_MissingInput)
-                         
-
-if len(minbiasFiles) > 0:
-    flagMinBias = True
-    tmpFiles = tuple(minbiasFiles)
-    for tmpF in tmpFiles:
-        findF = False
-        findName = ''
-        for curF in curFiles:
-            if re.search('^'+tmpF,curF) is not None:
-                findF = True
-                findName = curF
-                break
-        # remove if not exist
-        if not findF:
-            print ("%s not exist" % tmpF)
-            minbiasFiles.remove(tmpF)
-        # use URL
-        if directIn and findF:
-            minbiasFiles.remove(tmpF)
-            minbiasFiles.append(directPFNs[findName])
-    if len(minbiasFiles) == 0:
-        print ("No input file is available for Minimum-bias")
-        sys.exit(EC_NoInput)
-    if notSkipMissing and len(minbiasFiles) != len(tmpFiles):
-        print ("Some input files are missing")
-        sys.exit(EC_MissingInput)
-        
-
-if len(cavernFiles) > 0:
-    flagCavern = True
-    tmpFiles = tuple(cavernFiles)
-    for tmpF in tmpFiles:
-        findF = False
-        findName = ''
-        for curF in curFiles:
-            if re.search('^'+tmpF,curF) is not None:
-                findF = True
-                findName = curF
-                break
-        # remove if not exist
-        if not findF:
-            print ("%s not exist" % tmpF)
-            cavernFiles.remove(tmpF)
-        # use URL
-        if directIn and findF:
-            cavernFiles.remove(tmpF)
-            cavernFiles.append(directPFNs[findName])
-    if len(cavernFiles) == 0:
-        print ("No input file is available for Cavern")
-        sys.exit(EC_NoInput)        
-    if notSkipMissing and len(cavernFiles) != len(tmpFiles):
-        print ("Some input files are missing")
-        sys.exit(EC_MissingInput)
+    # add "" in envvar
+    try:
+        newString = '#!/bin/bash\n'
+        if envvarFile != '':
+            tmpEnvFile = open(envvarFile)
+            for line in tmpEnvFile:
+                # remove \n
+                line = line[:-1]
+                match = re.search('([^=]+)=(.*)',line)
+                if match is not None:
+                    # add ""
+                    newString += '%s="%s"\n' % (match.group(1),match.group(2))
+                else:
+                    newString += '%s\n' % line
+            tmpEnvFile.close()
+            # overwrite
+            tmpEnvFile = open(envvarFile,'w')
+            tmpEnvFile.write(newString)
+            tmpEnvFile.close()
+    except Exception as e:
+        print ('WARNING: changing envvar : %s' % str(e))
 
 
-if len(beamHaloFiles) > 0:
-    flagBeamHalo = True
-    tmpFiles = tuple(beamHaloFiles)
-    for tmpF in tmpFiles:
-        findF = False
-        findName = ''
-        for curF in curFiles:
-            if re.search('^'+tmpF,curF) is not None:
-                findF = True
-                findName = curF
-                break
-        # remove if not exist
-        if not findF:
-            print ("%s not exist" % tmpF)
-            beamHaloFiles.remove(tmpF)
-        # use URL
-        if directIn and findF:
-            beamHaloFiles.remove(tmpF)
-            beamHaloFiles.append(directPFNs[findName])
-    if len(beamHaloFiles) == 0:
-        print ("No input file is available for BeamHalo")
-        sys.exit(EC_NoInput)        
-    if notSkipMissing and len(beamHaloFiles) != len(tmpFiles):
-        print ("Some input files are missing")
-        sys.exit(EC_MissingInput)
+    # collect GUIDs from PoolFileCatalog
+    guidMapFromPFC = {}
+    directTmpTurl = {}
+    try:
+        print ("===== PFC from pilot =====")
+        tmpPcFile = open("PoolFileCatalog.xml")
+        print (tmpPcFile.read())
+        tmpPcFile.close()
+        # parse XML
+        root  = xml.dom.minidom.parse("PoolFileCatalog.xml")
+        files = root.getElementsByTagName('File')
+        for file in files:
+            # get ID
+            id = str(file.getAttribute('ID'))
+            # get PFN node
+            physical = file.getElementsByTagName('physical')[0]
+            pfnNode  = physical.getElementsByTagName('pfn')[0]
+            # convert UTF8 to Raw
+            pfn = str(pfnNode.getAttribute('name'))
+            lfn = pfn.split('/')[-1]
+            lfn = re.sub('__DQ2-\d+$','',lfn)
+            lfn = re.sub('^([^:]+:)','', lfn)
+            lfn = re.sub('\?GoogleAccessId.*$','',lfn)
+            # append
+            guidMapFromPFC[lfn] = id
+            directTmpTurl[id] = pfn
+    except Exception as e:
+        print ('ERROR : Failed to collect GUIDs : %s' % str(e))
+
+    print ("===== GUIDs in PFC =====")
+    print (guidMapFromPFC)
+
+    # check input files
+    directPfnMap = {}
+    directMetaMap = {}
+    directPFNs = {}
+    if directIn:
+        # Use the TURLs from PoolFileCatalog.xml created by pilot
+        print ("===== GUIDs and TURLs in PFC =====")
+        print (directTmpTurl)
+        directTmp = directTmpTurl
+        # set newPrefix to set copy tool in FileStager
+        if directTmp != {}:
+            # one PFN is enough since only the prefix is checked
+            newPrefix = directTmp.values()[0]
+        # collect LFNs
+        curFiles   = []
+        for id in directTmp.keys():
+            lfn = directTmp[id].split('/')[-1]
+            lfn = re.sub('^([^:]+:)','',lfn)
+            curFiles.append(lfn)
+            directPFNs[lfn] = directTmp[id]
+        directPfnMap = directTmp
+    elif givenPFN:
+        # collect LFNs
+        curFiles   = []
+        for lfn in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
+            curFiles.append(lfn)
+    else:
+        curFiles = os.listdir('.')
+
+    flagMinBias = False
+    flagCavern  = False
+    flagBeamGas = False
+    flagBeamHalo= False
+
+    if len(inputFiles) > 0 and (not shipInput):
+        tmpFiles = tuple(inputFiles)
+        for tmpF in tmpFiles:
+            findF = False
+            findName = ''
+            for curF in curFiles:
+                if re.search('^'+tmpF,curF) is not None:
+                    findF = True
+                    findName = curF
+                    break
+            # remove if not exist
+            if not findF:
+                print ("%s not exist" % tmpF)
+                inputFiles.remove(tmpF)
+            # use URL
+            if directIn and findF:
+                inputFiles.remove(tmpF)
+                inputFiles.append(directPFNs[findName])
+        if len(inputFiles) == 0:
+            print ("No input file is available")
+            sys.exit(EC_NoInput)
+        if notSkipMissing and len(inputFiles) != len(tmpFiles):
+            print ("Some input files are missing")
+            sys.exit(EC_MissingInput)
 
 
-if len(beamGasFiles) > 0:
-    flagBeamGas = True
-    tmpFiles = tuple(beamGasFiles)
-    for tmpF in tmpFiles:
-        findF = False
-        findName = ''
-        for curF in curFiles:
-            if re.search('^'+tmpF,curF) is not None:
-                findF = True
-                findName = curF
-                break
-        # remove if not exist
-        if not findF:
-            print ("%s not exist" % tmpF)
-            beamGasFiles.remove(tmpF)
-        # use URL
-        if directIn and findF:
-            beamGasFiles.remove(tmpF)
-            beamGasFiles.append(directPFNs[findName])
-    if len(beamGasFiles) == 0:
-        print ("No input file is available for BeamGas")
-        sys.exit(EC_NoInput)        
-    if notSkipMissing and len(beamGasFiles) != len(tmpFiles):
-        print ("Some input files are missing")
-        sys.exit(EC_MissingInput)
+    if len(minbiasFiles) > 0:
+        flagMinBias = True
+        tmpFiles = tuple(minbiasFiles)
+        for tmpF in tmpFiles:
+            findF = False
+            findName = ''
+            for curF in curFiles:
+                if re.search('^'+tmpF,curF) is not None:
+                    findF = True
+                    findName = curF
+                    break
+            # remove if not exist
+            if not findF:
+                print ("%s not exist" % tmpF)
+                minbiasFiles.remove(tmpF)
+            # use URL
+            if directIn and findF:
+                minbiasFiles.remove(tmpF)
+                minbiasFiles.append(directPFNs[findName])
+        if len(minbiasFiles) == 0:
+            print ("No input file is available for Minimum-bias")
+            sys.exit(EC_NoInput)
+        if notSkipMissing and len(minbiasFiles) != len(tmpFiles):
+            print ("Some input files are missing")
+            sys.exit(EC_MissingInput)
 
 
-print ("=== New inputFiles ===")
-print (inputFiles)
-if flagMinBias:
-    print ("=== New minbiasFiles ===")
-    print (minbiasFiles)
-if flagCavern:    
-    print ("=== New cavernFiles ===")
-    print (cavernFiles)
-if flagBeamHalo:
-    print ("=== New beamHaloFiles ===")
-    print (beamHaloFiles)
-if flagBeamGas:
-    print ("=== New beamGasFiles ===")
-    print (beamGasFiles)
+    if len(cavernFiles) > 0:
+        flagCavern = True
+        tmpFiles = tuple(cavernFiles)
+        for tmpF in tmpFiles:
+            findF = False
+            findName = ''
+            for curF in curFiles:
+                if re.search('^'+tmpF,curF) is not None:
+                    findF = True
+                    findName = curF
+                    break
+            # remove if not exist
+            if not findF:
+                print ("%s not exist" % tmpF)
+                cavernFiles.remove(tmpF)
+            # use URL
+            if directIn and findF:
+                cavernFiles.remove(tmpF)
+                cavernFiles.append(directPFNs[findName])
+        if len(cavernFiles) == 0:
+            print ("No input file is available for Cavern")
+            sys.exit(EC_NoInput)
+        if notSkipMissing and len(cavernFiles) != len(tmpFiles):
+            print ("Some input files are missing")
+            sys.exit(EC_MissingInput)
+
+
+    if len(beamHaloFiles) > 0:
+        flagBeamHalo = True
+        tmpFiles = tuple(beamHaloFiles)
+        for tmpF in tmpFiles:
+            findF = False
+            findName = ''
+            for curF in curFiles:
+                if re.search('^'+tmpF,curF) is not None:
+                    findF = True
+                    findName = curF
+                    break
+            # remove if not exist
+            if not findF:
+                print ("%s not exist" % tmpF)
+                beamHaloFiles.remove(tmpF)
+            # use URL
+            if directIn and findF:
+                beamHaloFiles.remove(tmpF)
+                beamHaloFiles.append(directPFNs[findName])
+        if len(beamHaloFiles) == 0:
+            print ("No input file is available for BeamHalo")
+            sys.exit(EC_NoInput)
+        if notSkipMissing and len(beamHaloFiles) != len(tmpFiles):
+            print ("Some input files are missing")
+            sys.exit(EC_MissingInput)
+
+
+    if len(beamGasFiles) > 0:
+        flagBeamGas = True
+        tmpFiles = tuple(beamGasFiles)
+        for tmpF in tmpFiles:
+            findF = False
+            findName = ''
+            for curF in curFiles:
+                if re.search('^'+tmpF,curF) is not None:
+                    findF = True
+                    findName = curF
+                    break
+            # remove if not exist
+            if not findF:
+                print ("%s not exist" % tmpF)
+                beamGasFiles.remove(tmpF)
+            # use URL
+            if directIn and findF:
+                beamGasFiles.remove(tmpF)
+                beamGasFiles.append(directPFNs[findName])
+        if len(beamGasFiles) == 0:
+            print ("No input file is available for BeamGas")
+            sys.exit(EC_NoInput)
+        if notSkipMissing and len(beamGasFiles) != len(tmpFiles):
+            print ("Some input files are missing")
+            sys.exit(EC_MissingInput)
+
+
+    print ("=== New inputFiles ===")
+    print (inputFiles)
+    if flagMinBias:
+        print ("=== New minbiasFiles ===")
+        print (minbiasFiles)
+    if flagCavern:
+        print ("=== New cavernFiles ===")
+        print (cavernFiles)
+    if flagBeamHalo:
+        print ("=== New beamHaloFiles ===")
+        print (beamHaloFiles)
+    if flagBeamGas:
+        print ("=== New beamGasFiles ===")
+        print (beamGasFiles)
 
 
 # crate work dir
 workDir = currentDir+"/workDir"
-commands_get_status_output('rm -rf %s' % workDir)
-os.makedirs(workDir)
+if not postprocess:
+    commands_get_status_output('rm -rf %s' % workDir)
+    os.makedirs(workDir)
 os.chdir(workDir)
 
 
-# expand libraries
-if libraries == '':
-    tmpStat, tmpOut = 0, ''
-elif libraries.startswith('/'):
-    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % libraries)
-    print (tmpOut)
-else:
-    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))
-    print (tmpOut)
-if tmpStat != 0:
-    print ("ERROR : {0} is corrupted".format(libraries))
-    sys.exit(EC_Tarball)
-
-# get and expand jobOs if needed
-if archiveJobO != "":
-    isOK = False
-    errStr = None
-    url = '%s/cache/%s' % (sourceURL, archiveJobO)
-    tmpStat, tmpOut = get_file_via_http(full_url=url)
-    if not tmpStat:
-        print ("ERROR : " + tmpOut)
-        sys.exit(EC_WGET)
-    tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
-    print (tmpOut)
+if not postprocess:
+    # expand libraries
+    if libraries == '':
+        tmpStat, tmpOut = 0, ''
+    elif libraries.startswith('/'):
+        tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % libraries)
+        print (tmpOut)
+    else:
+        tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))
+        print (tmpOut)
     if tmpStat != 0:
-        print ("ERROR : {0} is corrupted".format(archiveJobO))
+        print ("ERROR : {0} is corrupted".format(libraries))
         sys.exit(EC_Tarball)
 
+    # get and expand jobOs if needed
+    if archiveJobO != "":
+        isOK = False
+        errStr = None
+        url = '%s/cache/%s' % (sourceURL, archiveJobO)
+        tmpStat, tmpOut = get_file_via_http(full_url=url)
+        if not tmpStat:
+            print ("ERROR : " + tmpOut)
+            sys.exit(EC_WGET)
+        tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
+        print (tmpOut)
+        if tmpStat != 0:
+            print ("ERROR : {0} is corrupted".format(archiveJobO))
+            sys.exit(EC_Tarball)
 
-# make rundir just in case
-commands_get_status_output('mkdir %s' % runDir)
+
+    # make rundir just in case
+    commands_get_status_output('mkdir %s' % runDir)
 # go to run dir
 os.chdir(runDir)
 
-# make cmt dir
-cmtDir = '%s/%s/cmt' % (workDir, str(uuid.uuid4()))
-commands_get_status_output('mkdir -p %s' % cmtDir)
+if not postprocess:
+    # make cmt dir
+    cmtDir = '%s/%s/cmt' % (workDir, str(uuid.uuid4()))
+    commands_get_status_output('mkdir -p %s' % cmtDir)
 
 
 # create PoolFC
@@ -668,177 +680,178 @@ def _createPoolFC(pfnMap):
     outFile.close()
     
 
-# build pool catalog
-print ("\n=== build pool catalog ===")
-commands_get_status_output('rm -f PoolFileCatalog.xml')
-if len(inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles) > 0:
-    # POOL or BS files
-    filesToPfcMap = {}
-    for fileName in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
-        if (not directIn) and (not givenPFN):
-            targetName = fileName
-            # for rome data
-            if re.search(fileName,'\.\d+$')==None and (not fileName in curFiles):
-                for cFile in curFiles:
-                    if re.search('^'+fileName,cFile) is not None:
-                        targetName = cFile
-                        break
-            # form symlink to input file
-            try:
-                os.symlink('%s/%s' % (currentDir,targetName),fileName)
-            except:
-                pass
-        if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
-            # insert it to pool catalog
-            tmpLFNforPFC = fileName.split('/')[-1]
-            tmpLFNforPFC = re.sub('__DQ2-\d+$','',tmpLFNforPFC)
-            tmpLFNforPFC = re.sub('^([^:]+:)','', tmpLFNforPFC)
-            tmpLFNforPFC = re.sub('\?GoogleAccessId.*$','',tmpLFNforPFC)
-            if tmpLFNforPFC in guidMapFromPFC:
-                filesToPfcMap[guidMapFromPFC[tmpLFNforPFC]] = fileName
-            elif not givenPFN:
-                print ("ERROR : %s not found in the pilot PFC" % fileName)
-        # create PFC for directIn + trf
-        if directIn and (runTrf and not runAra):
-            _createPoolFC(directPfnMap)
-            # form symlink to input file mainly for DBRelease
-            for tmpID in directPfnMap.keys():
-                lfn = directPfnMap[tmpID].split('/')[-1] 
+if not postprocess:
+    # build pool catalog
+    print ("\n=== build pool catalog ===")
+    commands_get_status_output('rm -f PoolFileCatalog.xml')
+    if len(inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles) > 0:
+        # POOL or BS files
+        filesToPfcMap = {}
+        for fileName in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
+            if (not directIn) and (not givenPFN):
+                targetName = fileName
+                # for rome data
+                if re.search(fileName,'\.\d+$')==None and (not fileName in curFiles):
+                    for cFile in curFiles:
+                        if re.search('^'+fileName,cFile) is not None:
+                            targetName = cFile
+                            break
+                # form symlink to input file
                 try:
-                    targetName = '%s/%s' % (currentDir,lfn)
-                    if os.path.exists(targetName):
-                        os.symlink(targetName,lfn)
+                    os.symlink('%s/%s' % (currentDir,targetName),fileName)
                 except:
                     pass
-    # create PFC for local files
-    if filesToPfcMap != {}: 
-        _createPoolFC(filesToPfcMap)
-    elif givenPFN:
-        # insert using pool_insertFTC since GUIDs are unavailable from the pilot
-        for fileName in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
-            com = 'pool_insertFileToCatalog %s' % fileName
-            print (com)
-            os.system(com)
-        
-    # read PoolFileCatalog.xml
-    pLines = ''
-    try:
-        pFile = open('PoolFileCatalog.xml')
-        for line in pFile:
-            pLines += line
-        pFile.close()
-    except Exception:
-        if mcData == '' and not (runTrf and not runAra):
-            print ("ERROR : cannot open PoolFileCatalog.xml")
-    # remove corrupted files
-    print ("=== corruption check ===")
-    # doesn't check BS/nonRoot files since they don't invoke insert_PFC
-    if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
-        tmpFiles = tuple(inputFiles)
-        for tmpF in tmpFiles:
-            if re.search(tmpF,pLines) == None:
-                inputFiles.remove(tmpF)
-                print ("%s is corrupted or non-ROOT file" % tmpF)
-        if notSkipMissing and len(inputFiles) != len(tmpFiles):
-            print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
-    if len(inputFiles)==0:        
-        print ("No input file is available after corruption check")
-        sys.exit(EC_NoInput)
+            if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
+                # insert it to pool catalog
+                tmpLFNforPFC = fileName.split('/')[-1]
+                tmpLFNforPFC = re.sub('__DQ2-\d+$','',tmpLFNforPFC)
+                tmpLFNforPFC = re.sub('^([^:]+:)','', tmpLFNforPFC)
+                tmpLFNforPFC = re.sub('\?GoogleAccessId.*$','',tmpLFNforPFC)
+                if tmpLFNforPFC in guidMapFromPFC:
+                    filesToPfcMap[guidMapFromPFC[tmpLFNforPFC]] = fileName
+                elif not givenPFN:
+                    print ("ERROR : %s not found in the pilot PFC" % fileName)
+            # create PFC for directIn + trf
+            if directIn and (runTrf and not runAra):
+                _createPoolFC(directPfnMap)
+                # form symlink to input file mainly for DBRelease
+                for tmpID in directPfnMap.keys():
+                    lfn = directPfnMap[tmpID].split('/')[-1]
+                    try:
+                        targetName = '%s/%s' % (currentDir,lfn)
+                        if os.path.exists(targetName):
+                            os.symlink(targetName,lfn)
+                    except:
+                        pass
+        # create PFC for local files
+        if filesToPfcMap != {}:
+            _createPoolFC(filesToPfcMap)
+        elif givenPFN:
+            # insert using pool_insertFTC since GUIDs are unavailable from the pilot
+            for fileName in inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles:
+                com = 'pool_insertFileToCatalog %s' % fileName
+                print (com)
+                os.system(com)
 
-# for user specified files
-if addPoolFC != []:
-    print ("=== adding user files to PoolFileCatalog.xml ===")
-    for fileName in addPoolFC:
-        # insert it to pool catalog
-        com = 'pool_insertFileToCatalog %s' % fileName
-        print (com)
-        status,output = commands_get_status_output(com)
-        print (output)
-        if status != 0:
-            print ('trying coolHist_insertFileToCatalog.py since pool_insertFileToCatalog failed')
-            com = 'coolHist_insertFileToCatalog.py %s' % fileName
+        # read PoolFileCatalog.xml
+        pLines = ''
+        try:
+            pFile = open('PoolFileCatalog.xml')
+            for line in pFile:
+                pLines += line
+            pFile.close()
+        except Exception:
+            if mcData == '' and not (runTrf and not runAra):
+                print ("ERROR : cannot open PoolFileCatalog.xml")
+        # remove corrupted files
+        print ("=== corruption check ===")
+        # doesn't check BS/nonRoot files since they don't invoke insert_PFC
+        if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
+            tmpFiles = tuple(inputFiles)
+            for tmpF in tmpFiles:
+                if re.search(tmpF,pLines) == None:
+                    inputFiles.remove(tmpF)
+                    print ("%s is corrupted or non-ROOT file" % tmpF)
+            if notSkipMissing and len(inputFiles) != len(tmpFiles):
+                print ("Some input files are missing")
+                sys.exit(EC_MissingInput)
+        if len(inputFiles)==0:
+            print ("No input file is available after corruption check")
+            sys.exit(EC_NoInput)
+
+    # for user specified files
+    if addPoolFC != []:
+        print ("=== adding user files to PoolFileCatalog.xml ===")
+        for fileName in addPoolFC:
+            # insert it to pool catalog
+            com = 'pool_insertFileToCatalog %s' % fileName
             print (com)
             status,output = commands_get_status_output(com)
             print (output)
-                            
-
-# print PoolFC
-print ('')
-print ("=== PoolFileCatalog.xml ===")
-print (commands_get_status_output('cat PoolFileCatalog.xml')[-1])
-print ('')
-
-# create symlink for MC
-if mcData != '' and len(inputFiles) != 0:
-    print ("=== make symlink for %s ===" % mcData)
-    # expand mcdata.tgz
-    commands_get_status_output('rm -f %s' % mcData)
-    status,output = commands_get_status_output('tar xvfzm %s' % inputFiles[0])
-    print (output)
-    if status != 0:
-        print ("ERROR : MC data corrupted")
-        sys.exit(EC_NoInput)
-    # look for .dat
-    foundMcData = False
-    for line in output.split('\n'):
-        if line.endswith('.dat'):
-            status,output = commands_get_status_output('ln -fs %s %s' %
-                                                       (line.split()[-1],mcData))
             if status != 0:
+                print ('trying coolHist_insertFileToCatalog.py since pool_insertFileToCatalog failed')
+                com = 'coolHist_insertFileToCatalog.py %s' % fileName
+                print (com)
+                status,output = commands_get_status_output(com)
                 print (output)
-                print ("ERROR : failed to create symlink for MC data")
-                sys.exit(EC_NoInput)
-            foundMcData = True
-            break
-    if not foundMcData:
-        print ("ERROR : cannot find *.dat in %s" % inputFiles[0])
-        sys.exit(EC_NoInput)
 
-# setup DB/CDRelease
-if dbrFile != '':
-    if noExpandDBR:
-        # make symlink
-        print (commands_get_status_output('ln -fs %s/%s %s' % (currentDir,dbrFile,dbrFile))[-1])
-    else:
-        if dbrRun == -1:
-            print ("=== setup DB/CDRelease (old style) ===")
-            # expand 
-            status,out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,dbrFile))
-            print (out)
-            # remove
-            print (commands_get_status_output('rm %s/%s' % (currentDir,dbrFile))[-1])
-        else:
-            print ("=== setup DB/CDRelease (new style) ===")
+
+    # print PoolFC
+    print ('')
+    print ("=== PoolFileCatalog.xml ===")
+    print (commands_get_status_output('cat PoolFileCatalog.xml')[-1])
+    print ('')
+
+    # create symlink for MC
+    if mcData != '' and len(inputFiles) != 0:
+        print ("=== make symlink for %s ===" % mcData)
+        # expand mcdata.tgz
+        commands_get_status_output('rm -f %s' % mcData)
+        status,output = commands_get_status_output('tar xvfzm %s' % inputFiles[0])
+        print (output)
+        if status != 0:
+            print ("ERROR : MC data corrupted")
+            sys.exit(EC_NoInput)
+        # look for .dat
+        foundMcData = False
+        for line in output.split('\n'):
+            if line.endswith('.dat'):
+                status,output = commands_get_status_output('ln -fs %s %s' %
+                                                           (line.split()[-1],mcData))
+                if status != 0:
+                    print (output)
+                    print ("ERROR : failed to create symlink for MC data")
+                    sys.exit(EC_NoInput)
+                foundMcData = True
+                break
+        if not foundMcData:
+            print ("ERROR : cannot find *.dat in %s" % inputFiles[0])
+            sys.exit(EC_NoInput)
+
+    # setup DB/CDRelease
+    if dbrFile != '':
+        if noExpandDBR:
             # make symlink
             print (commands_get_status_output('ln -fs %s/%s %s' % (currentDir,dbrFile,dbrFile))[-1])
-            # run Reco_trf and set env vars
-            dbCom = 'Reco_trf.py RunNumber=%s DBRelease=%s' % (dbrRun,dbrFile)
-            print (dbCom)
-            status,out = commands_get_status_output(dbCom)
-            print (out)
-            # remove
-            print (commands_get_status_output('rm %s/%s' % (currentDir,dbrFile))[-1])
-        # look for setup.py
-        tmpSetupDir = None
-        for line in out.split('\n'):
-            if line.endswith('setup.py'):
-                tmpSetupDir = re.sub('setup.py$','',line)
-                break
-        # check
-        if tmpSetupDir == None:
-            print ("ERROR : cound not find setup.py in %s" % dbrFile)
-            sys.exit(EC_DBRelease)
-        # run setup.py
-        dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nprint 'DBR setup finished'\nos.chdir('%s')\n" % \
-                       (tmpSetupDir,os.getcwd())
-        dbrSetupStr += "import sys\nsys.stdout.flush()\nsys.stderr.flush()\n"
+        else:
+            if dbrRun == -1:
+                print ("=== setup DB/CDRelease (old style) ===")
+                # expand
+                status,out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,dbrFile))
+                print (out)
+                # remove
+                print (commands_get_status_output('rm %s/%s' % (currentDir,dbrFile))[-1])
+            else:
+                print ("=== setup DB/CDRelease (new style) ===")
+                # make symlink
+                print (commands_get_status_output('ln -fs %s/%s %s' % (currentDir,dbrFile,dbrFile))[-1])
+                # run Reco_trf and set env vars
+                dbCom = 'Reco_trf.py RunNumber=%s DBRelease=%s' % (dbrRun,dbrFile)
+                print (dbCom)
+                status,out = commands_get_status_output(dbCom)
+                print (out)
+                # remove
+                print (commands_get_status_output('rm %s/%s' % (currentDir,dbrFile))[-1])
+            # look for setup.py
+            tmpSetupDir = None
+            for line in out.split('\n'):
+                if line.endswith('setup.py'):
+                    tmpSetupDir = re.sub('setup.py$','',line)
+                    break
+            # check
+            if tmpSetupDir == None:
+                print ("ERROR : cound not find setup.py in %s" % dbrFile)
+                sys.exit(EC_DBRelease)
+            # run setup.py
+            dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nprint 'DBR setup finished'\nos.chdir('%s')\n" % \
+                           (tmpSetupDir,os.getcwd())
+            dbrSetupStr += "import sys\nsys.stdout.flush()\nsys.stderr.flush()\n"
 
-               
-# create post-jobO file which overwrites some parameters
-postOpt = 'post_' + str(uuid.uuid4()) + '.py'
-oFile = open(postOpt,'w')
-oFile.write("""
+
+    # create post-jobO file which overwrites some parameters
+    postOpt = 'post_' + str(uuid.uuid4()) + '.py'
+    oFile = open(postOpt,'w')
+    oFile.write("""
 try:
     EventSelectorAthenaPool.__getattribute__ = orig_ESAP__getattribute
 except:
@@ -851,46 +864,46 @@ def _Service(str):
     except:
         return Service(str)
 """)
-if len(inputFiles) != 0 and mcData == '' and not runAra:
-    if (re.search('theApp.EvtMax',fragmentJobO) is None) and \
-       (re.search('EvtMax',jobO) is None):
-        oFile.write('theApp.EvtMax = -1\n')
-    if byteStream:
-        # BS
-        oFile.write('ByteStreamInputSvc = _Service( "ByteStreamInputSvc" )\n')
-        oFile.write('ByteStreamInputSvc.FullFileName = %s\n' % inputFiles)        
-    else:
-        oFile.write('EventSelector = _Service( "EventSelector" )\n')
-        # normal POOL
-        oFile.write('EventSelector.InputCollections = %s\n' % inputFiles)
-elif len(inputFiles) != 0 and runAra:
-    for tmpInput in inputFiles:
-        oFile.write("CollectionTree.Add('%s')\n" % tmpInput)
-if flagMinBias:
-    oFile.write('minBiasEventSelector = _Service( "minBiasEventSelector" )\n')
-    oFile.write('minBiasEventSelector.InputCollections = %s\n' % minbiasFiles)
-if flagCavern:
-    oFile.write('cavernEventSelector = _Service( "cavernEventSelector" )\n')
-    oFile.write('cavernEventSelector.InputCollections = %s\n' % cavernFiles)
-if flagBeamHalo:
-    oFile.write('BeamHaloEventSelector = _Service( "BeamHaloEventSelector" )\n')
-    oFile.write('BeamHaloEventSelector.InputCollections = %s\n' % beamHaloFiles)
-if flagBeamGas:
-    oFile.write('BeamGasEventSelector = _Service( "BeamGasEventSelector" )\n')
-    oFile.write('BeamGasEventSelector.InputCollections = %s\n' % beamGasFiles)
-if 'hist' in outputFiles:
-    oFile.write('HistogramPersistencySvc=_Service("HistogramPersistencySvc")\n')
-    oFile.write('HistogramPersistencySvc.OutputFile = "%s"\n' % outputFiles['hist'])
-if 'ntuple' in outputFiles:
-    oFile.write('NTupleSvc = _Service( "NTupleSvc" )\n')
-    firstFlag = True
-    for sName,fName in outputFiles['ntuple']:
-        if firstFlag:
-            firstFlag = False
-            oFile.write('NTupleSvc.Output=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))            
+    if len(inputFiles) != 0 and mcData == '' and not runAra:
+        if (re.search('theApp.EvtMax',fragmentJobO) is None) and \
+           (re.search('EvtMax',jobO) is None):
+            oFile.write('theApp.EvtMax = -1\n')
+        if byteStream:
+            # BS
+            oFile.write('ByteStreamInputSvc = _Service( "ByteStreamInputSvc" )\n')
+            oFile.write('ByteStreamInputSvc.FullFileName = %s\n' % inputFiles)
         else:
-            oFile.write('NTupleSvc.Output+=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))
-oFile.write("""
+            oFile.write('EventSelector = _Service( "EventSelector" )\n')
+            # normal POOL
+            oFile.write('EventSelector.InputCollections = %s\n' % inputFiles)
+    elif len(inputFiles) != 0 and runAra:
+        for tmpInput in inputFiles:
+            oFile.write("CollectionTree.Add('%s')\n" % tmpInput)
+    if flagMinBias:
+        oFile.write('minBiasEventSelector = _Service( "minBiasEventSelector" )\n')
+        oFile.write('minBiasEventSelector.InputCollections = %s\n' % minbiasFiles)
+    if flagCavern:
+        oFile.write('cavernEventSelector = _Service( "cavernEventSelector" )\n')
+        oFile.write('cavernEventSelector.InputCollections = %s\n' % cavernFiles)
+    if flagBeamHalo:
+        oFile.write('BeamHaloEventSelector = _Service( "BeamHaloEventSelector" )\n')
+        oFile.write('BeamHaloEventSelector.InputCollections = %s\n' % beamHaloFiles)
+    if flagBeamGas:
+        oFile.write('BeamGasEventSelector = _Service( "BeamGasEventSelector" )\n')
+        oFile.write('BeamGasEventSelector.InputCollections = %s\n' % beamGasFiles)
+    if 'hist' in outputFiles:
+        oFile.write('HistogramPersistencySvc=_Service("HistogramPersistencySvc")\n')
+        oFile.write('HistogramPersistencySvc.OutputFile = "%s"\n' % outputFiles['hist'])
+    if 'ntuple' in outputFiles:
+        oFile.write('NTupleSvc = _Service( "NTupleSvc" )\n')
+        firstFlag = True
+        for sName,fName in outputFiles['ntuple']:
+            if firstFlag:
+                firstFlag = False
+                oFile.write('NTupleSvc.Output=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))
+            else:
+                oFile.write('NTupleSvc.Output+=["%s DATAFILE=\'%s\' OPT=\'NEW\'"]\n' % (sName,fName))
+    oFile.write("""
 _configs = []
 seqList = []
 pTmpStreamList = []
@@ -933,81 +946,81 @@ def _getConfig(key):
                 return getattr(tmpAlgSequence,key)
 
 """)
-if 'RDO' in outputFiles:
-    oFile.write("""
+    if 'RDO' in outputFiles:
+        oFile.write("""
 key = "StreamRDO"    
 if key in _configs:
     StreamRDO = _getConfig( key )
 else:
     StreamRDO = Algorithm( key )
 """)
-    oFile.write('StreamRDO.OutputFile = "%s"\n' % outputFiles['RDO'])
-    oFile.write('pTmpStreamList.append(StreamRDO)\n')
-if 'ESD' in outputFiles:
-    oFile.write("""
+        oFile.write('StreamRDO.OutputFile = "%s"\n' % outputFiles['RDO'])
+        oFile.write('pTmpStreamList.append(StreamRDO)\n')
+    if 'ESD' in outputFiles:
+        oFile.write("""
 key = "StreamESD"    
 if key in _configs:
     StreamESD = _getConfig( key )
 else:
     StreamESD = Algorithm( key )
 """)
-    oFile.write('StreamESD.OutputFile = "%s"\n' % outputFiles['ESD'])
-    oFile.write('pTmpStreamList.append(StreamESD)\n')
-if 'AOD' in outputFiles:
-    oFile.write("""
+        oFile.write('StreamESD.OutputFile = "%s"\n' % outputFiles['ESD'])
+        oFile.write('pTmpStreamList.append(StreamESD)\n')
+    if 'AOD' in outputFiles:
+        oFile.write("""
 key = "StreamAOD"    
 if key in _configs:
     StreamAOD = _getConfig( key )
 else:
     StreamAOD = Algorithm( key )
 """)
-    oFile.write('StreamAOD.OutputFile = "%s"\n' % outputFiles['AOD'])
-    oFile.write('pTmpStreamList.append(StreamAOD)\n')
-if 'TAG' in outputFiles:
-    oFile.write("""
+        oFile.write('StreamAOD.OutputFile = "%s"\n' % outputFiles['AOD'])
+        oFile.write('pTmpStreamList.append(StreamAOD)\n')
+    if 'TAG' in outputFiles:
+        oFile.write("""
 key = "StreamTAG"    
 if key in _configs:
     StreamTAG = _getConfig( key )
 else:
     StreamTAG = Algorithm( key )
 """)
-    oFile.write('StreamTAG.OutputCollection = "%s"\n' % re.sub('\.root\.*\d*$','',outputFiles['TAG']))
-if 'AANT' in outputFiles:
-    firstFlag = True
-    oFile.write('THistSvc = _Service ( "THistSvc" )\n')
-    sNameList = []
-    for aName,sName,fName in outputFiles['AANT']:
-        if not sName in sNameList:
-            sNameList.append(sName)    
-            if firstFlag:
-                firstFlag = False
-                oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
-            else:
-                oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))            
-        oFile.write("""
+        oFile.write('StreamTAG.OutputCollection = "%s"\n' % re.sub('\.root\.*\d*$','',outputFiles['TAG']))
+    if 'AANT' in outputFiles:
+        firstFlag = True
+        oFile.write('THistSvc = _Service ( "THistSvc" )\n')
+        sNameList = []
+        for aName,sName,fName in outputFiles['AANT']:
+            if not sName in sNameList:
+                sNameList.append(sName)
+                if firstFlag:
+                    firstFlag = False
+                    oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+                else:
+                    oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+            oFile.write("""
 key = "%s"
 if key in _configs:
     AANTupleStream = _getConfig( key )
 else:
     AANTupleStream = Algorithm( key )
 """ % aName)
-        oFile.write('AANTupleStream.StreamName = "%s"\n' % sName)
-        oFile.write('AANTupleStream.OutputName = "%s"\n' % fName)        
-    if 'THIST' in outputFiles:
-        for sName,fName in outputFiles['THIST']:
-            oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
-else:
-    if 'THIST' in outputFiles:
-        oFile.write('THistSvc = _Service ( "THistSvc" )\n')
-        firstFlag = True
-        for sName,fName in outputFiles['THIST']:
-            if firstFlag:
-                firstFlag = False
-                oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
-            else:
-                oFile.write('THistSvc.Output+= ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
-if 'Stream1' in outputFiles:
-    oFile.write("""
+            oFile.write('AANTupleStream.StreamName = "%s"\n' % sName)
+            oFile.write('AANTupleStream.OutputName = "%s"\n' % fName)
+        if 'THIST' in outputFiles:
+            for sName,fName in outputFiles['THIST']:
+                oFile.write('THistSvc.Output += ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+    else:
+        if 'THIST' in outputFiles:
+            oFile.write('THistSvc = _Service ( "THistSvc" )\n')
+            firstFlag = True
+            for sName,fName in outputFiles['THIST']:
+                if firstFlag:
+                    firstFlag = False
+                    oFile.write('THistSvc.Output = ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+                else:
+                    oFile.write('THistSvc.Output+= ["%s DATAFILE=\'%s\' OPT=\'UPDATE\'"]\n' % (sName,fName))
+    if 'Stream1' in outputFiles:
+        oFile.write("""
 key = "Stream1"    
 if key in _configs:
     Stream1 = _getConfig( key )
@@ -1017,10 +1030,10 @@ else:
     except:
         Stream1 = Algorithm( key )
 """)
-    oFile.write('Stream1.OutputFile = "%s"\n' % outputFiles['Stream1'])
-    oFile.write('pTmpStreamList.append(Stream1)\n')
-if 'Stream2' in outputFiles:
-    oFile.write("""
+        oFile.write('Stream1.OutputFile = "%s"\n' % outputFiles['Stream1'])
+        oFile.write('pTmpStreamList.append(Stream1)\n')
+    if 'Stream2' in outputFiles:
+        oFile.write("""
 key = "Stream2"    
 if key in _configs:
     Stream2 = _getConfig( key )
@@ -1030,9 +1043,9 @@ else:
     except:
         Stream2 = Algorithm( key )
 """)
-    oFile.write('Stream2.OutputFile = "%s"\n' % outputFiles['Stream2'])
-    oFile.write('pTmpStreamList.append(Stream2)\n')
-    oFile.write("""
+        oFile.write('Stream2.OutputFile = "%s"\n' % outputFiles['Stream2'])
+        oFile.write('pTmpStreamList.append(Stream2)\n')
+        oFile.write("""
 key = "%s_FH" % key
 Stream2_FH = None
 if key in _configs:
@@ -1043,14 +1056,14 @@ else:
     except:
         pass
 """)
-    oFile.write("""
+        oFile.write("""
 if Stream2_FH != None:
     Stream2_FH.OutputFile = "%s"
 """ % outputFiles['Stream2'])
 
-if 'StreamG' in outputFiles:
-    for stName,stFileName in outputFiles['StreamG']:
-        oFile.write("""
+    if 'StreamG' in outputFiles:
+        for stName,stFileName in outputFiles['StreamG']:
+            oFile.write("""
 key = "%s"    
 if key in _configs:
     StreamX = _getConfig( key )
@@ -1060,11 +1073,11 @@ else:
     except:
         StreamX = Algorithm( key )
 """ % stName)
-        oFile.write('StreamX.OutputFile = "%s"\n' % stFileName)
-        oFile.write('pTmpStreamList.append(StreamX)\n')
-if 'Meta' in outputFiles:
-    for stName,stFileName in outputFiles['Meta']:
-        oFile.write("""
+            oFile.write('StreamX.OutputFile = "%s"\n' % stFileName)
+            oFile.write('pTmpStreamList.append(StreamX)\n')
+    if 'Meta' in outputFiles:
+        for stName,stFileName in outputFiles['Meta']:
+            oFile.write("""
 key = "%s"    
 if key in _configs:
     StreamX = _getConfig( key )
@@ -1074,11 +1087,11 @@ else:
     except:
         StreamX = Algorithm( key )
 """ % stName)
-        oFile.write('StreamX.OutputFile = "ROOTTREE:%s"\n' % stFileName)
+            oFile.write('StreamX.OutputFile = "ROOTTREE:%s"\n' % stFileName)
 
-if 'UserData' in outputFiles:
-    for stFileName in outputFiles['UserData']:
-        oFile.write("""
+    if 'UserData' in outputFiles:
+        for stFileName in outputFiles['UserData']:
+            oFile.write("""
 try:
     # try new style
     userDataSvc = None
@@ -1114,43 +1127,43 @@ try:
 except:
     pass
 """ % stFileName)
-    
-uniqueTag = str(uuid.uuid4())
-if 'BS' in outputFiles:
-    oFile.write('ByteStreamEventStorageOutputSvc = _Service("ByteStreamEventStorageOutputSvc")\n')
-    oFile.write('ByteStreamEventStorageOutputSvc.FileTag = "%s"\n' % uniqueTag)
-    oFile.write("""
+
+    uniqueTag = str(uuid.uuid4())
+    if 'BS' in outputFiles:
+        oFile.write('ByteStreamEventStorageOutputSvc = _Service("ByteStreamEventStorageOutputSvc")\n')
+        oFile.write('ByteStreamEventStorageOutputSvc.FileTag = "%s"\n' % uniqueTag)
+        oFile.write("""
 try:
     ByteStreamEventStorageOutputSvc.AppName = "%s"
 except:
     pass
-""" % uniqueTag)    
-    oFile.write('ByteStreamEventStorageOutputSvc.OutputDirectory = "./"\n')
-if fragmentJobO != "":
-    oFile.write('%s\n' % fragmentJobO)
+""" % uniqueTag)
+        oFile.write('ByteStreamEventStorageOutputSvc.OutputDirectory = "./"\n')
+    if fragmentJobO != "":
+        oFile.write('%s\n' % fragmentJobO)
 
-# event picking
-if eventPickTxt != '':
-    epRunEvtList = []
-    epFH = open(eventPickTxt)
-    iepNum = 0
-    for epLine in epFH:
-        items = epLine.split()
-        if len(items) != 2 and len(items) != 3:
-            continue
-        # check range    
-        epSkipFlag = False
-        if eventPickNum > 0:
-            if iepNum < eventPickSt:
-                epSkipFlag = True
-            if iepNum >= eventPickSt+eventPickNum:
-                epSkipFlag = True
-        iepNum += 1
-        if epSkipFlag:
-            continue
-        # append        
-        epRunEvtList.append((long(items[0]),long(items[1])))
-    oFile.write("""
+    # event picking
+    if eventPickTxt != '':
+        epRunEvtList = []
+        epFH = open(eventPickTxt)
+        iepNum = 0
+        for epLine in epFH:
+            items = epLine.split()
+            if len(items) != 2 and len(items) != 3:
+                continue
+            # check range
+            epSkipFlag = False
+            if eventPickNum > 0:
+                if iepNum < eventPickSt:
+                    epSkipFlag = True
+                if iepNum >= eventPickSt+eventPickNum:
+                    epSkipFlag = True
+            iepNum += 1
+            if epSkipFlag:
+                continue
+            # append
+            epRunEvtList.append((long(items[0]),long(items[1])))
+        oFile.write("""
 from AthenaCommon.AlgSequence import AthSequencer
 seq = AthSequencer('AthFilterSeq')
 from GaudiSequencer.PyComps import PyEvtFilter
@@ -1166,14 +1179,14 @@ for tmpStream in theApp._streams.getAllChildren():
         tmpStream.AcceptAlgs = [seq.alg.name()]
 """ % str(epRunEvtList))
 
-oFile.close()
+    oFile.close()
 
-# overwrite EventSelectorAthenaPool.InputCollections and AthenaCommon.AthenaCommonFlags.FilesInput for jobO level metadata extraction
-preOpt = 'pre_' + str(uuid.uuid4()) + '.py'
-oFile = open(preOpt,'w')
-if len(inputFiles) != 0 and mcData == '':
-    if not byteStream:
-        oFile.write("""      
+    # overwrite EventSelectorAthenaPool.InputCollections and AthenaCommon.AthenaCommonFlags.FilesInput for jobO level metadata extraction
+    preOpt = 'pre_' + str(uuid.uuid4()) + '.py'
+    oFile = open(preOpt,'w')
+    if len(inputFiles) != 0 and mcData == '':
+        if not byteStream:
+            oFile.write("""      
 try:
     from EventSelectorAthenaPool.EventSelectorAthenaPoolConf import EventSelectorAthenaPool
     orig_ESAP__getattribute =  EventSelectorAthenaPool.__getattribute__
@@ -1192,7 +1205,7 @@ except:
     except:
         pass
 """ % inputFiles)
-    oFile.write("""      
+        oFile.write("""      
 try:
     import AthenaCommon.AthenaCommonFlags
 
@@ -1219,9 +1232,9 @@ try:
 except:
     pass
 """ % (inputFiles,inputFiles))
-# filter for verbose expansion
-try:
-    oFile.write("""
+    # filter for verbose expansion
+    try:
+        oFile.write("""
 try:
     from AthenaCommon.Include import excludeTracePattern
     excludeTracePattern.append('*/CLIDComps/clidGenerator.py')
@@ -1231,213 +1244,226 @@ try:
 except:
     pass
 """)
-except Exception:
-    pass
-# for SummarySvc
-oFile.write("""      
+    except Exception:
+        pass
+    # for SummarySvc
+    oFile.write("""      
 try:
     from AthenaServices.SummarySvc import *
     useAthenaSummarySvc()
 except:
     pass
 """)
-                
-oFile.close()
 
-# dump
+    oFile.close()
 
-print ("=== pre jobO ===")
-oFile = open(preOpt)
-lines = ''
-for line in oFile:
-    lines += line
-print (lines)
-oFile.close()
-print ('')
+    # dump
 
-print ("=== post jobO ===")
-oFile = open(postOpt)
-lines = ''
-for line in oFile:
-    lines += line
-print (lines)
-oFile.close()
+    print ("=== pre jobO ===")
+    oFile = open(preOpt)
+    lines = ''
+    for line in oFile:
+        lines += line
+    print (lines)
+    oFile.close()
+    print ('')
 
-# replace theApp.initialize when using theApp.nextEvent
-if useNextEvent:
-    initOpt = 'init_' + str(uuid.uuid4()) + '.py'
-    initFile = open(initOpt,'w')
-    initFile.write("""
+    print ("=== post jobO ===")
+    oFile = open(postOpt)
+    lines = ''
+    for line in oFile:
+        lines += line
+    print (lines)
+    oFile.close()
+
+    # replace theApp.initialize when using theApp.nextEvent
+    if useNextEvent:
+        initOpt = 'init_' + str(uuid.uuid4()) + '.py'
+        initFile = open(initOpt,'w')
+        initFile.write("""
 origTheAppinitialize = theApp.initialize                   
 def fakeTheAppinitialize():
     include('%s')
     origTheAppinitialize()
 theApp.initialize = fakeTheAppinitialize    
 """ % postOpt)
-    initFile.close()
-    
-    print ("=== init jobO ===")
-    iFile = open(initOpt)
-    lines = ''
-    for line in iFile:
-        lines += line
-    print (lines)
-    iFile.close()
+        initFile.close()
 
-    # modify jobO
-    print ("=== change jobO ===")
-    newJobO = ''
-    startPy = False
-    for item in jobO.split():
-        if (not startPy) and item.endswith('.py'):
-            newJobO += (" " + initOpt)
-            startPy = True
-        newJobO += (" " + item)    
-    print ("  Old : " + jobO)
-    print ("  New : " + newJobO)
-    jobO = newJobO
+        print ("=== init jobO ===")
+        iFile = open(initOpt)
+        lines = ''
+        for line in iFile:
+            lines += line
+        print (lines)
+        iFile.close()
 
-# change %IN for TRF with TAGs
-if runTrf and eventColl:
-    print ("=== change jobO for TRF+TAG===")
-    tmpStrInput = ''
-    for tmpName in inputFiles:
-        tmpStrInput += '%s,' % tmpName
-    tmpStrInput = tmpStrInput[:-1]
-    newJobO = re.sub('%IN(?P<term>;| |$|\'|\"|,)',tmpStrInput+'\g<term>',jobO)
-    print ("  Old : " + jobO)
-    print ("  New : " + newJobO)
-    jobO = newJobO
+        # modify jobO
+        print ("=== change jobO ===")
+        newJobO = ''
+        startPy = False
+        for item in jobO.split():
+            if (not startPy) and item.endswith('.py'):
+                newJobO += (" " + initOpt)
+                startPy = True
+            newJobO += (" " + item)
+        print ("  Old : " + jobO)
+        print ("  New : " + newJobO)
+        jobO = newJobO
 
-# get PDGTABLE.MeV
-commands_get_status_output('get_files PDGTABLE.MeV')
+    # change %IN for TRF with TAGs
+    if runTrf and eventColl:
+        print ("=== change jobO for TRF+TAG===")
+        tmpStrInput = ''
+        for tmpName in inputFiles:
+            tmpStrInput += '%s,' % tmpName
+        tmpStrInput = tmpStrInput[:-1]
+        newJobO = re.sub('%IN(?P<term>;| |$|\'|\"|,)',tmpStrInput+'\g<term>',jobO)
+        print ("  Old : " + jobO)
+        print ("  New : " + newJobO)
+        jobO = newJobO
 
-# temporary output to avoid MemeoryError
-tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
-tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
+    # get PDGTABLE.MeV
+    commands_get_status_output('get_files PDGTABLE.MeV')
 
-# construct command
-if not useCMake:
-    # append workdir to CMTPATH
-    env = 'CMTPATH=%s:$CMTPATH' % workDir
-    com = 'export %s;' % env
-else:
-    com = ''
-# local RAC
-if 'ATLAS_CONDDB' not in os.environ or os.environ['ATLAS_CONDDB']=='to.be.set':
-    if 'OSG_HOSTNAME' in os.environ:
-        com += 'export ATLAS_CONDDB=%s;' % os.environ['OSG_HOSTNAME']
-    elif 'GLOBUS_CE' in os.environ:
-        tmpCE = os.environ['GLOBUS_CE'].split('/')[0]
-        # remove port number
-        tmpCE = re.sub(':\d+$','',tmpCE)
-        com += 'export ATLAS_CONDDB=%s;' % tmpCE
-    elif 'PBS_O_HOST' in os.environ:
-        com += 'export ATLAS_CONDDB=%s;' % os.environ['PBS_O_HOST']
-if not useCMake:    
-    com += 'cd %s;' % cmtDir
-    com += 'echo -e "use AtlasPolicy AtlasPolicy-*\nuse PathResolver PathResolver-* Tools\n" > requirements;'
-    com += 'cmt config;'
-    com += 'source ./setup.sh;'
-    com += 'export TestArea=%s;' % workDir
-    com += 'cd -;env;'
-else:
-    cmakeSetupDir = 'usr/*/*/InstallArea/*'
-    print ("CMake setup dir : {0}".format(cmakeSetupDir))
-    if len(glob.glob(cmakeSetupDir)) > 0:
-        com += 'source {0}/setup.sh;'.format(cmakeSetupDir)
+    # temporary output to avoid MemeoryError
+    tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
+    tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
+
+    # construct command
+    if not useCMake:
+        # append workdir to CMTPATH
+        env = 'CMTPATH=%s:$CMTPATH' % workDir
+        com = 'export %s;' % env
     else:
-        print ('WARNING: CMake setup dir not found')
-    com += 'env;'
-thrStr = ''
-if useAthenaMT:
-    if 'ATHENA_PROC_NUMBER' in os.environ:
-        thrStr = '--threads={0} '.format(os.environ['ATHENA_PROC_NUMBER'])
+        com = ''
+    # local RAC
+    if 'ATLAS_CONDDB' not in os.environ or os.environ['ATLAS_CONDDB']=='to.be.set':
+        if 'OSG_HOSTNAME' in os.environ:
+            com += 'export ATLAS_CONDDB=%s;' % os.environ['OSG_HOSTNAME']
+        elif 'GLOBUS_CE' in os.environ:
+            tmpCE = os.environ['GLOBUS_CE'].split('/')[0]
+            # remove port number
+            tmpCE = re.sub(':\d+$','',tmpCE)
+            com += 'export ATLAS_CONDDB=%s;' % tmpCE
+        elif 'PBS_O_HOST' in os.environ:
+            com += 'export ATLAS_CONDDB=%s;' % os.environ['PBS_O_HOST']
+    if not useCMake:
+        com += 'cd %s;' % cmtDir
+        com += 'echo -e "use AtlasPolicy AtlasPolicy-*\nuse PathResolver PathResolver-* Tools\n" > requirements;'
+        com += 'cmt config;'
+        com += 'source ./setup.sh;'
+        com += 'export TestArea=%s;' % workDir
+        com += 'cd -;env;'
     else:
-        thrStr = '--threads=1 '
-if (not runTrf) and dbrFile == '':
-    # unset ATHENA_PROC_NUMBER for AthenaMT
+        cmakeSetupDir = 'usr/*/*/InstallArea/*'
+        print ("CMake setup dir : {0}".format(cmakeSetupDir))
+        if len(glob.glob(cmakeSetupDir)) > 0:
+            com += 'source {0}/setup.sh;'.format(cmakeSetupDir)
+        else:
+            print ('WARNING: CMake setup dir not found')
+        com += 'env;'
+    thrStr = ''
     if useAthenaMT:
-        com += 'unset ATHENA_PROC_NUMBER; '
-    # run Athena
-    com += 'athena.py '
-    if codeTrace:
-        com += '-s '
-    if useAthenaMT:
-        com += thrStr
-    if ' - ' in jobO:
-        tmpJobO = re.sub(' - ', ' %s - ' % postOpt, jobO)
-        com += '%s %s' % (preOpt, tmpJobO)
-    else:
-        com += '%s %s %s' % (preOpt,jobO,postOpt)
-elif dbrFile != '' and not noExpandDBR:
-    # run setup.py and athena.py in a python
-    tmpTrfName = 'trf.%s.py' % str(uuid.uuid4())
-    tmpTrfFile = open(tmpTrfName,'w')
-    tmpTrfFile.write(dbrSetupStr)
-    if not runTrf:
-        tmpTrfFile.write('import os\n')
+        if 'ATHENA_PROC_NUMBER' in os.environ:
+            thrStr = '--threads={0} '.format(os.environ['ATHENA_PROC_NUMBER'])
+        else:
+            thrStr = '--threads=1 '
+    if (not runTrf) and dbrFile == '':
+        # unset ATHENA_PROC_NUMBER for AthenaMT
         if useAthenaMT:
-            tmpTrfFile.write("""if 'ATHENA_PROC_NUMBER' in os.environ:
-    del os.environ['ATHENA_PROC_NUMBER']\n""")
-        tmpTrfFile.write('import sys\nstatus=os.system("""athena.py ')
+            com += 'unset ATHENA_PROC_NUMBER; '
+        # run Athena
+        com += 'athena.py '
         if codeTrace:
-            tmpTrfFile.write('-s ')
+            com += '-s '
         if useAthenaMT:
-            tmpTrfFile.write(thrStr)
+            com += thrStr
         if ' - ' in jobO:
             tmpJobO = re.sub(' - ', ' %s - ' % postOpt, jobO)
-            tmpTrfFile.write('%s %s""")\n' % (preOpt, tmpJobO))
+            com += '%s %s' % (preOpt, tmpJobO)
         else:
-            tmpTrfFile.write('%s %s %s""")\n' % (preOpt,jobO,postOpt))
-    else:
-        tmpTrfFile.write("""if 'DBRELEASE' in os.environ:
+            com += '%s %s %s' % (preOpt,jobO,postOpt)
+    elif dbrFile != '' and not noExpandDBR:
+        # run setup.py and athena.py in a python
+        tmpTrfName = 'trf.%s.py' % str(uuid.uuid4())
+        tmpTrfFile = open(tmpTrfName,'w')
+        tmpTrfFile.write(dbrSetupStr)
+        if not runTrf:
+            tmpTrfFile.write('import os\n')
+            if useAthenaMT:
+                tmpTrfFile.write("""if 'ATHENA_PROC_NUMBER' in os.environ:
+    del os.environ['ATHENA_PROC_NUMBER']\n""")
+            tmpTrfFile.write('import sys\nstatus=os.system("""athena.py ')
+            if codeTrace:
+                tmpTrfFile.write('-s ')
+            if useAthenaMT:
+                tmpTrfFile.write(thrStr)
+            if ' - ' in jobO:
+                tmpJobO = re.sub(' - ', ' %s - ' % postOpt, jobO)
+                tmpTrfFile.write('%s %s""")\n' % (preOpt, tmpJobO))
+            else:
+                tmpTrfFile.write('%s %s %s""")\n' % (preOpt,jobO,postOpt))
+        else:
+            tmpTrfFile.write("""if 'DBRELEASE' in os.environ:
     os.environ['DBRELEASE_REQUESTED'] = os.environ['DBRELEASE']\n""")
-        tmpTrfFile.write('import sys\nstatus=os.system("""%s""")\n' % jobO)
-    tmpTrfFile.write('status %= 255\nsys.exit(status)\n\n')
-    tmpTrfFile.close()
-    com += 'echo;echo ==== TRF BEGIN ====;cat %s;echo ===== TRF END ====;echo;python -u %s' % (tmpTrfName,tmpTrfName)
-else:
-    # run transformation
-    com += '%s' % jobO
+            tmpTrfFile.write('import sys\nstatus=os.system("""%s""")\n' % jobO)
+        tmpTrfFile.write('status %= 255\nsys.exit(status)\n\n')
+        tmpTrfFile.close()
+        com += 'echo;echo ==== TRF BEGIN ====;cat %s;echo ===== TRF END ====;echo;python -u %s' % (tmpTrfName,tmpTrfName)
+    else:
+        # run transformation
+        com += '%s' % jobO
 
-print ("\n=== execute ===")
-print (com)
-# run athena
-if not debugFlag:
-    # write stdout to tmp file
-    com += ' > %s 2> %s' % (tmpOutput,tmpStderr)
-    status,out = commands_get_status_output(com)
-    print (out)
-    statusChanged = False
-    try:
-        tmpOutFile = open(tmpOutput)
-        for line in tmpOutFile:
-            print (line[:-1])
-            # set status=0 for AcerMC
-            if re.search('ACERMC TERMINATES NORMALY: NO MORE EVENTS IN FILE',line) != None:
-                status = 0
-                statusChanged = True
-        tmpOutFile.close()
-    except Exception:
-        pass
-    if statusChanged:
-        print ("\n\nStatusCode was overwritten for AcerMC\n")
-    try:
-        tmpErrFile = open(tmpStderr)
-        for line in tmpErrFile:
-            print (line[:-1])
-        tmpErrFile.close()
-    except:
-        pass
-    # print 'sh: line 1:  8278 Aborted'
-    try:
-        if status != 0:
-            print (out.split('\n')[-1])
-    except:
-        pass
-else:
-    status = os.system(com)
+if not postprocess:
+    if preprocess:
+        runExecName = os.path.join(currentDir, '__run_main_exec.sh')
+        with open(runExecName, 'w') as f:
+            f.write(com)
+        commands_get_status_output('chmod +x {0}'.format(runExecName))
+        print ("\n==== Result ====")
+        print ("produced {0}\n".format(runExecName))
+        with open(runExecName) as f:
+            print (f.read())
+        print ("preprocessing successfully done")
+        sys.exit(0)
+
+    print ("\n=== execute ===")
+    print (com)
+    # run athena
+    if not debugFlag:
+        # write stdout to tmp file
+        com += ' > %s 2> %s' % (tmpOutput,tmpStderr)
+        status,out = commands_get_status_output(com)
+        print (out)
+        statusChanged = False
+        try:
+            tmpOutFile = open(tmpOutput)
+            for line in tmpOutFile:
+                print (line[:-1])
+                # set status=0 for AcerMC
+                if re.search('ACERMC TERMINATES NORMALY: NO MORE EVENTS IN FILE',line) != None:
+                    status = 0
+                    statusChanged = True
+            tmpOutFile.close()
+        except Exception:
+            pass
+        if statusChanged:
+            print ("\n\nStatusCode was overwritten for AcerMC\n")
+        try:
+            tmpErrFile = open(tmpStderr)
+            for line in tmpErrFile:
+                print (line[:-1])
+            tmpErrFile.close()
+        except:
+            pass
+        # print 'sh: line 1:  8278 Aborted'
+        try:
+            if status != 0:
+                print (out.split('\n')[-1])
+        except:
+            pass
+    else:
+        status = os.system(com)
 
 print ('')
 print ("=== list in run dir ===")
