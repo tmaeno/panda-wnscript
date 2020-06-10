@@ -1311,15 +1311,15 @@ theApp.initialize = fakeTheAppinitialize
         jobO = newJobO
 
     # change %IN for TRF with TAGs
-    if runTrf and eventColl:
-        print ("=== change jobO for TRF+TAG===")
-        tmpStrInput = ''
+    if runTrf and directIn:
+        print ("=== change jobO for TRF + directIn ===")
+        newJobO = jobO
         for tmpName in inputFiles:
-            tmpStrInput += '%s,' % tmpName
-        tmpStrInput = tmpStrInput[:-1]
-        newJobO = re.sub('%IN(?P<term>;| |$|\'|\"|,)',tmpStrInput+'\g<term>',jobO)
+            newJobO = re.sub('(?P<term> |=|\'|\"|,){0}'.format(os.path.basename(tmpName)),
+                             '\g<term>{0}'.format(tmpName), newJobO)
         print ("  Old : " + jobO)
         print ("  New : " + newJobO)
+        print ("")
         jobO = newJobO
 
     # get PDGTABLE.MeV
