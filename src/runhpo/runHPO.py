@@ -393,7 +393,7 @@ if not postprocess:
                         json.dump(tmpOut['parameters'], wf)
                     break
         except RuntimeError as e:
-            print ("ERROR: failed to get a HP sample from iDDS. {0}".format(e.message))
+            print ("ERROR: failed to get a HP sample from iDDS. {0}".format(str(e)))
         except Exception as e:
             print ("ERROR: failed to get an event from PanDA. {0}".format(str(e)))
             sys.exit(EC_EVENT)
