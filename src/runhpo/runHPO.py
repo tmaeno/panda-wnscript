@@ -371,6 +371,9 @@ if not postprocess:
                 event_id = event['eventRangeID']
                 sample_id = event_id.split('-')[3]
                 print (" got eventID={0} sampleID={1}\n".format(event_id, sample_id))
+                if taskID is None:
+                    taskID = event_id.split('-')[0]
+                    print (" set eventID={0} from None\n".format(taskID))
                 # check with iDDS
                 print ("\n=== getting HP samples from iDDS ===")
                 tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
