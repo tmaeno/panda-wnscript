@@ -14,17 +14,19 @@ def setLogger(tmpLog):
 
 
 # return logger
-def getPandaLogger():
+def getPandaLogger(log_file_name=None):
     # use root logger
     global rootLog
     if rootLog == None:
         rootLog = logging.getLogger('')
     # add StreamHandler if no handler
-    if rootLog.handlers == []:
+    if rootLog.handlers == [] or log_file_name is None:
         rootLog.setLevel(logging.DEBUG)
-        console = logging.StreamHandler(sys.stdout)
+        if log_file_name is None:
+            console = logging.StreamHandler(sys.stdout)
+        else:
+            console = logging.FileHandler(log_file_name)
         formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-        #formatter = logging.Formatter('%(levelname)s : %(message)s')
         console.setFormatter(formatter)
         rootLog.addHandler(console)
     # return

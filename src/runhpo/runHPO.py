@@ -10,13 +10,14 @@ import time
 import getopt
 import uuid
 import json
+import shutil
 import xml.dom.minidom
 try:
     import urllib.request as urllib
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory, \
-    get_hpo_sample, update_hpo_sample, update_events
+    get_hpo_sample, update_hpo_sample, update_events, CheckPointUploader
 
 # error code
 EC_MissingArg  = 10
@@ -57,6 +58,9 @@ taskID = os.environ.get('PanDA_TaskID')
 pandaURL = 'https://pandaserver.cern.ch:25443'
 iddsURL = 'https://iddsserver.cern.ch:443'
 dryRun = False
+checkPointToSave = None
+checkPointToLoad = None
+checkPointInterval = 5
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
@@ -69,7 +73,9 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "pandaID=", "taskID=",
                             "inSampleFile=", "outMetaFile=",
                             "outMetricsFile=", "dryRun",
-                            "preprocess", "postprocess"
+                            "preprocess", "postprocess",
+                            "checkPointToSave=", "checkPointToLoad=",
+                            "checkPointInterval="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -122,6 +128,12 @@ for o, a in opts:
         outMetricsFile = a
     if o == '--dryRun':
         dryRun = True
+    if o == '--checkPointToSave':
+        checkPointToSave = a
+    if o == '--checkPointToLoad':
+        checkPointToLoad = a
+    if o == '--checkPointInterval':
+        checkPointInterval = int(a)
 
 # dump parameter
 try:
@@ -152,6 +164,9 @@ try:
     print ("outMetaFile", outMetaFile)
     print ("outMetricsFile", outMetricsFile)
     print ("dryRun", dryRun)
+    print ("checkPointToSave", checkPointToSave)
+    print ("checkPointToLoad", checkPointToLoad)
+    print ("checkPointInterval", checkPointInterval)
     print ("===================\n")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -337,7 +352,7 @@ if not postprocess:
         if writeInputToTxtMap != {}:
             print ('')
     # fetch an event
-    print ("=== getting events from PanDA ===")
+    print ("=== getting events from PanDA ===\n")
     for iii in range(10):
         if dryRun:
             sample_id = 123
@@ -403,6 +418,22 @@ if not postprocess:
         print ("exit due to no event")
         sys.exit(0)
 
+    # get checkpoint file
+    if checkPointToSave is not None:
+        print ("\n=== getting checkpoint ===")
+        cpFile = 'hpo_cp_{0}_{1}'.format(taskID, sample_id)
+        url = '%s/cache/%s' % (sourceURL, cpFile)
+        tmpStat, tmpOut = get_file_via_http(full_url=url)
+        if not tmpStat:
+            print ("checkpoint file unavailable : " + tmpOut)
+        else:
+            if checkPointToLoad is None:
+                tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % cpFile)
+                print (tmpOut)
+            else:
+                shutil.move(cpFile, checkPointToLoad)
+        print ('')
+
     # construct command
     com = ''
     if preprocess:
@@ -434,6 +465,12 @@ if not postprocess:
     tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
     tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
 
+    # run checkpoint uploader
+    cup = None
+    if checkPointToSave is not None:
+        cup = CheckPointUploader(taskID, sample_id, checkPointToSave, checkPointInterval,
+                                 sourceURL, certfile, keyfile, debugFlag)
+        cup.start()
 
     print ("\n=== execute ===")
     print (com)
@@ -470,6 +507,12 @@ if not postprocess:
             pass
     else:
         status = os.system(com)
+
+    # terminate checkpoint uploader
+    if cup is not None:
+        cup.terminate()
+        if status == 0:
+            cup.cleanup()
 else:
     # no event
     if not os.path.exists(sampleFileName):
