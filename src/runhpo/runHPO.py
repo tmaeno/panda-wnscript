@@ -286,7 +286,7 @@ if not postprocess:
             else:
                 # make symlinks to input files
                 if inputFile in currentDirFiles:
-                    os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
+                    os.symlink(os.path.relpath(os.path.join(currentDir, inputFile), os.getcwd()), inputFile)
                     newInputs.append(inputFile)
                     foundFlag = True
                     inputFileMap[inputFile] = inputFile

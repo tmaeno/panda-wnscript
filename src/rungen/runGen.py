@@ -375,7 +375,10 @@ if not postprocess:
             else:
                 # make symlinks to input files
                 if inputFile in currentDirFiles:
-                    os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
+                    if preprocess:
+                        os.symlink(os.path.relpath(os.path.join(currentDir, inputFile), os.getcwd()), inputFile)
+                    else:
+                        os.symlink('%s/%s' % (currentDir, inputFile), inputFile)
                     newInputs.append(inputFile)
                     foundFlag = True
                     inputFileMap[inputFile] = inputFile
@@ -394,7 +397,10 @@ if not postprocess:
     if dbrFile != '':
         if notExpandDBR:
             # just make a symlink
-            print (commands_get_status_output('ln -fs %s/%s %s' % (currentDir,dbrFile,dbrFile))[-1])
+            if preprocess:
+                os.symlink(os.path.relpath(os.path.join(currentDir, dbrFile), os.getcwd()), dbrFile)
+            else:
+                print (commands_get_status_output('ln -fs %s/%s %s' % (currentDir,dbrFile,dbrFile))[-1])
         else:
             if dbrRun == -1:
                 print ("=== setup DB/CDRelease (old style) ===")
