@@ -526,6 +526,8 @@ if not postprocess:
     if preprocess:
         tmpTrfFile.write('cd {0}\n'.format(os.path.relpath(os.getcwd(), currentDir)))
         tmpTrfFile.write(setupEnv)
+        if 'X509_CERT_DIR' in os.environ:
+            tmpTrfFile.write('export X509_CERT_DIR={0}\n'.format(os.environ['X509_CERT_DIR']))
         tmpTrfFile.write('export PATH=$PATH:.\n')
         tmpTrfFile.write('echo\necho ==== env ====\nenv\necho\necho ==== start ====\n')
         tmpTrfFile.write('{0} {1}\n'.format(scriptName,newJobParams))
