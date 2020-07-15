@@ -527,6 +527,7 @@ if not postprocess:
         tmpTrfFile.write('cd {0}\n'.format(os.path.relpath(os.getcwd(), currentDir)))
         tmpTrfFile.write(setupEnv)
         tmpTrfFile.write('export PATH=$PATH:.\n')
+        tmpTrfFile.write('echo\necho ==== env ====\nenv\necho\necho ==== start ====\n')
         tmpTrfFile.write('{0} {1}\n'.format(scriptName,newJobParams))
     else:
         # wrap commands to invoke execve even if preload is removed/changed
