@@ -17,7 +17,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory, \
-    get_hpo_sample, update_hpo_sample, update_events, CheckPointUploader
+    get_hpo_sample, update_hpo_sample, update_events, CheckPointUploader, parse_harvester_events_json
 
 # error code
 EC_MissingArg  = 10
@@ -61,6 +61,11 @@ dryRun = False
 checkPointToSave = None
 checkPointToLoad = None
 checkPointInterval = 5
+if 'PAYLOAD_OFFLINE_MODE' in os.environ:
+    offlineMode = True
+else:
+    offlineMode = False
+localCheckPointFile = None
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
@@ -167,6 +172,7 @@ try:
     print ("checkPointToSave", checkPointToSave)
     print ("checkPointToLoad", checkPointToLoad)
     print ("checkPointInterval", checkPointInterval)
+    print ("offlineMode", offlineMode)
     print ("===================\n")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -262,6 +268,7 @@ os.chdir(runDir)
 # preprocess or single-step execution
 eventFileName = '__panda_events.json'
 sampleFileName = '__hpo_sample.txt'
+eventStatusDumpFile = os.path.join(currentDir, 'event_status.dump')
 if 'X509_USER_PROXY' in os.environ:
     certfile = os.environ['X509_USER_PROXY']
 else:
@@ -302,7 +309,7 @@ if not postprocess:
     # add current dir to PATH
     os.environ['PATH'] = '.:'+os.environ['PATH']
 
-    print ("=== ls in run dir : %s (%s) ===" % (runDir, os.getcwd()))
+    print ("\n=== ls in run dir : %s (%s) ===" % (runDir, os.getcwd()))
     print (commands_get_status_output('ls -l')[-1])
     print ('')
 
@@ -352,7 +359,7 @@ if not postprocess:
         if writeInputToTxtMap != {}:
             print ('')
     # fetch an event
-    print ("=== getting events from PanDA ===\n")
+    print ("=== getting events ===\n")
     for iii in range(10):
         if dryRun:
             sample_id = 123
@@ -360,15 +367,22 @@ if not postprocess:
             with open(sampleFileName, 'w') as f:
                 f.write('{0},{1}'.format(event_id, sample_id))
             break
-        data = dict()
-        data['pandaID'] = pandaID
-        data['jobsetID'] = 0
-        data['taskID'] = taskID
-        data['nRanges'] = 1
-        url = pandaURL + '/server/panda/getEventRanges'
-        tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
-                                            headers={'Accept': 'application/json'},
-                                            certfile=certfile, keyfile=keyfile)
+        if not offlineMode:
+            print ("from PanDA")
+            # get events from panda server
+            data = dict()
+            data['pandaID'] = pandaID
+            data['jobsetID'] = 0
+            data['taskID'] = taskID
+            data['nRanges'] = 1
+            url = pandaURL + '/server/panda/getEventRanges'
+            tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
+                                                headers={'Accept': 'application/json'},
+                                                certfile=certfile, keyfile=keyfile)
+        else:
+            # parse harvester json to get events
+            print ("from json")
+            tmpStat, tmpOut = parse_harvester_events_json(pandaID, 'JobsEventRanges.json', eventFileName)
         if not tmpStat:
             print ("ERROR : " + tmpOut)
             sys.exit(EC_WGET)
@@ -390,8 +404,14 @@ if not postprocess:
                     taskID = event_id.split('-')[0]
                     print (" set eventID={0} from None\n".format(taskID))
                 # check with iDDS
-                print ("\n=== getting HP samples from iDDS ===")
-                tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
+                if not offlineMode:
+                    print ("\n=== getting HP samples from iDDS ===")
+                    tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
+                else:
+                    print ("\n=== getting HP samples from json ===")
+                    tmpStat, tmpOut = True, event['hp_point']
+                    if 'checkpoint' in event:
+                        localCheckPointFile = event['checkpoint']
                 if not tmpStat:
                     raise RuntimeError(tmpOut)
                 print ("\n got {0}".format(str(tmpOut)))
@@ -421,9 +441,17 @@ if not postprocess:
     # get checkpoint file
     if checkPointToSave is not None:
         print ("\n=== getting checkpoint ===")
-        cpFile = 'hpo_cp_{0}_{1}'.format(taskID, sample_id)
-        url = '%s/cache/%s' % (sourceURL, cpFile)
-        tmpStat, tmpOut = get_file_via_http(full_url=url)
+        if not offlineMode:
+            cpFile = 'hpo_cp_{0}_{1}'.format(taskID, sample_id)
+            url = '%s/cache/%s' % (sourceURL, cpFile)
+            tmpStat, tmpOut = get_file_via_http(full_url=url)
+        else:
+            if localCheckPointFile is None:
+                tmpStat, tmpOut = False, ''
+            else:
+                print ('using local file : {0}'.format(localCheckPointFile))
+                cpFile = localCheckPointFile
+                tmpStat, tmpOut = True, ''
         if not tmpStat:
             print ("checkpoint file unavailable : " + tmpOut)
         else:
@@ -468,8 +496,9 @@ if not postprocess:
     # run checkpoint uploader
     cup = None
     if checkPointToSave is not None:
-        cup = CheckPointUploader(taskID, sample_id, checkPointToSave, checkPointInterval,
-                                 sourceURL, certfile, keyfile, debugFlag)
+        cup = CheckPointUploader(taskID, pandaID, sample_id, checkPointToSave, checkPointInterval,
+                                 sourceURL, certfile, keyfile, debugFlag, offlineMode,
+                                 eventStatusDumpFile)
         cup.start()
 
     print ("\n=== execute ===")
@@ -559,14 +588,21 @@ print ('')
 
 # report loss
 if loss is not None and not dryRun:
-    print ("=== reporting loss to iDDS ===")
-    tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss)
-    if not tmpStat:
-        print ('ERROR: {0}\n'.format(tmpOut))
+    if not offlineMode:
+        print ("=== reporting loss to iDDS ===")
+        tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss)
+        if not tmpStat:
+            print ('ERROR: {0}\n'.format(tmpOut))
+        else:
+            print ("\n=== updating events in PanDA ===")
+            update_events(pandaURL, event_id, 'finished', certfile, keyfile)
+            print ('')
     else:
-        print ("\n=== updating events in PanDA ===")
-        update_events(pandaURL, event_id, 'finished', certfile, keyfile)
-        print ('')
+        print ("=== dump loss + event ===")
+        with open(eventStatusDumpFile, 'w') as f:
+            data = {str(pandaID): [{'eventRangeID': event_id, 'eventStatus': 'finished', 'loss': loss}]}
+            json.dump(data, f)
+            print (data)
 
 # add user job metadata
 try:

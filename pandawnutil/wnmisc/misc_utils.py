@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import zlib
 import datetime
 import shutil
 try:
@@ -299,12 +300,51 @@ def make_tarball_for_fresh_files(files_to_check, output_file, last_check_time, m
         tmp_log.error('!!!! failed to make a tarball due to {0}'.format(str(e)))
         return False
 
+# parse harvester events json
+def parse_harvester_events_json(panda_id, source, destination):
+    # look for source path
+    source_path = None
+    if os.path.exists(source):
+        source_path = source
+    else:
+        # look in the home directory or payload working directory
+        for tmpEnv in [ENV_HOME, ENV_WORK_DIR]:
+            if tmpEnv in os.environ:
+                tmpPath = os.path.join(os.environ[tmpEnv], source)
+                if os.path.exists(tmpPath):
+                    source_path = tmpPath
+                    break
+    # not found
+    if source_path is None:
+        return False, 'source={0} not found'.format(source)
+    panda_id = str(panda_id)
+    # parse
+    try:
+        print (source_path)
+        with open(source_path) as fi:
+            print(fi.read())
+            fi.seek(0)
+            data = json.load(fi)
+            if panda_id not in data:
+                return False, 'PandaID={0} not found in json'.format(panda_id)
+            # dump
+            with open(destination, 'w') as fo:
+                if data[panda_id]:
+                    json.dump(data[panda_id][0], fo)
+                else:
+                    # dummy
+                    json.dump({}, fo)
+        return True, None
+    except Exception as e:
+        return False, 'failed to parse harvester json: {0}'.format(str(e))
+
 
 # class to periodically upload checkpoint files
 class CheckPointUploader:
-    def __init__(self, task_id, sample_id, files_to_check, check_interval, panda_url, certfile, keyfile,
-                 verbose):
+    def __init__(self, task_id, panda_id, sample_id, files_to_check, check_interval, panda_url, certfile, keyfile,
+                 verbose, offline_mode=False, dump_file=None):
         self.task_id = task_id
+        self.panda_id = panda_id
         self.sample_id = sample_id
         self.output_filename = '{0}_{1}'.format(task_id, sample_id)
         self.files_to_check = files_to_check
@@ -314,6 +354,8 @@ class CheckPointUploader:
         self.keyfile = keyfile
         self.body = None
         self.verbose = verbose
+        self.offline_mode = offline_mode
+        self.dump_file = dump_file
         self.log_filename = 'log.checkpoint_uploader'
         self.tmpLog = PLogger.getPandaLogger(log_file_name=self.log_filename)
 
@@ -336,6 +378,8 @@ class CheckPointUploader:
 
     # cleanup
     def cleanup(self):
+        if self.offline_mode:
+            return
         print ('=== trying to cleanup checkpoint ===')
         data = dict()
         data['task_id'] = self.task_id
@@ -352,6 +396,20 @@ class CheckPointUploader:
             print (f.read())
         print ('')
 
+    # calculate adler32
+    def calc_adler32(self, file_name):
+        val = 1
+        blockSize = 32 * 1024 * 1024
+        with open(file_name, 'rb') as fp:
+            while True:
+                data = fp.read(blockSize)
+                if not data:
+                    break
+                val = zlib.adler32(data, val)
+        if val < 0:
+            val += 2 ** 32
+        return hex(val)[2:10].zfill(8).lower()
+
     # real main
     def _run(self):
         last_check_time = datetime.datetime.utcnow()
@@ -366,15 +424,30 @@ class CheckPointUploader:
             if self.verbose:
                 self.tmpLog.debug('is new? {0}'.format(is_new))
             if is_new:
-                # upload
-                self.tmpLog.info('uploading new checkpoint')
-                tmpStat, tmpOut = get_file_via_http(file_name=tmpDump, full_url=url,
-                                                    filename_to_upload=self.output_filename, force_access=True,
-                                                    certfile=self.certfile, keyfile=self.keyfile)
-                self.tmpLog.info('status={0} out={1}'.format(tmpStat, tmpOut))
-                if tmpStat:
-                    with open(tmpDump) as f:
-                        self.tmpLog.info(f.read())
+                if not self.offline_mode:
+                    # upload
+                    self.tmpLog.info('uploading new checkpoint')
+                    tmpStat, tmpOut = get_file_via_http(file_name=tmpDump, full_url=url,
+                                                        filename_to_upload=self.output_filename, force_access=True,
+                                                        certfile=self.certfile, keyfile=self.keyfile)
+                    self.tmpLog.info('status={0} out={1}'.format(tmpStat, tmpOut))
+                    if tmpStat:
+                        with open(tmpDump) as f:
+                            self.tmpLog.info(f.read())
+                else:
+                    self.tmpLog.info('dump to json')
+                    if os.path.exists(self.dump_file):
+                        self.tmpLog.info('skip since the file exists')
+                    else:
+                        with open(self.dump_file, 'w') as f:
+                            path = os.path.join(os.getcwd(), self.output_filename)
+                            json.dump({str(self.panda_id): [{"guid": str(uuid.uuid4()),
+                                                             "path": path,
+                                                             "fsize": os.stat(path).st_size,
+                                                             "type": "checkpoint",
+                                                             "chksum": self.calc_adler32(path)}
+                                                            ]}, f)
+                        self.tmpLog.info('done')
             if self.verbose:
                 self.tmpLog.debug('go to sleep for {0} min'.format(self.check_interval))
             time.sleep(self.check_interval * 60)
