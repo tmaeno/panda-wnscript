@@ -11,7 +11,10 @@ import shutil
 import tarfile
 import xml.dom.minidom
 import traceback
-import urllib
+try:
+    import urllib.request as urllib
+except ImportError:
+    import urllib
 import uuid
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output
 
