@@ -11,6 +11,11 @@ from tarfile import open as tarfile_open
 from tempfile import mkdtemp
 from time import time
 
+try:
+    unicode
+except Exception:
+    unicode = str
+
 import ROOT as R
 from ROOT import gROOT, gSystem
 from ROOT import TTree, TTreeCloner, kTRUE, kFALSE, TObjString
@@ -472,7 +477,7 @@ def main():
 
     #if options.fs and not file_stager_available:
     #    parser.error("file stager library could not be loaded!")
-    
+
     TreeMerger.key = options.key
     TreeMerger.selection = options.selection
     output_name = options.outfile
