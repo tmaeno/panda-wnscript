@@ -427,7 +427,7 @@ def merge_files(output_filename, input_filenames, pattern=None, fs=False, fs_pro
     
     input_generator = root_file_generator(input_filenames, pattern, fs, fs_protocol)
     try:
-        first_file = input_generator.next()
+        first_file = next(input_generator)
     except StopIteration:
         print ("No files to merge!")
         return 1
