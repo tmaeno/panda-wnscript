@@ -158,6 +158,11 @@ def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers
     return True, None
 
 
+# propagate missing sandbox error to the pilot
+def propagate_missing_sandbox_error():
+    print ('ERROR: unable to fetch source tarball from web')
+
+
 # replacement for commands
 def commands_get_status_output(com):
     data = ''

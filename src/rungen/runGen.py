@@ -15,7 +15,8 @@ try:
     import urllib.request as urllib
 except ImportError:
     import urllib
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
+    propagate_missing_sandbox_error
 
 # error code
 EC_MissingArg  = 10
@@ -273,6 +274,7 @@ if not postprocess:
         tmpStat, tmpOut = get_file_via_http(full_url=url)
         if not tmpStat:
             print ("ERROR : " + tmpOut)
+            propagate_missing_sandbox_error()
             sys.exit(EC_WGET)
         tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
         print (tmpOut)
