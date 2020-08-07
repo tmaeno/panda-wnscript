@@ -122,7 +122,10 @@ if useCMake:
     else:
         tmpStat = subprocess.call('tar tvfz {0}'.format(libraries),shell=True)
     if tmpStat != 0:
-        print ("ERROR : {0} is corrupted".format(libraries))
+        print ("")
+        print ("ERROR : check with tar tvfz gave non-zero return code")
+        print ("ERROR : {0} is corrupted".format(sources))
+        propagate_missing_sandbox_error()
         sys.exit(EC_NoTarball)
     print ("\n--- finished ---")
     print (time.ctime())

@@ -196,7 +196,10 @@ if not useAthenaPackages or noCompile:
         tmpStat, out = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,sources))
     print (out)
     if tmpStat != 0:
-        print ("ERROR : {0} is corrupted".format(libraries))
+        print ("")
+        print ("ERROR : check with tar tvfz gave non-zero return code")
+        print ("ERROR : {0} is corrupted".format(sources))
+        propagate_missing_sandbox_error()
         sys.exit(EC_NoTarball)
 
 # create cmt dir to setup Athena
