@@ -8,9 +8,11 @@ try:
     from urllib.request import urlopen, Request
     from urllib.error import HTTPError
     from urllib.parse import urlencode
+    from http.client import IncompleteRead
 except ImportError:
     from urllib import urlencode
     from urllib2 import urlopen, HTTPError, Request
+    from httplib import IncompleteRead
 import ssl
 import subprocess
 import multiprocessing
@@ -139,7 +141,21 @@ def get_file_via_http(base_url='', file_name='', full_url='', data=None, headers
             else:
                 res = urlopen(req, context=context)
             with open(file_name, 'wb') as f:
-                f.write(res.read())
+                full_read = res.read()
+                f.write(full_read)
+            # size check
+            try:
+                cont_size = res.headers.get('content-length', None)
+            except Exception:
+                cont_size = None
+            if cont_size is None:
+                print ('skip size check since content-length is missing')
+            else:
+                cont_size = int(cont_size)
+                act_size = os.stat(file_name).st_size
+                print ('content-length={0} actual-size={1}'.format(cont_size, act_size))
+                if cont_size != act_size:
+                    raise IncompleteRead(full_read, cont_size-act_size)
             isOK = True
             break
         except HTTPError as e:
