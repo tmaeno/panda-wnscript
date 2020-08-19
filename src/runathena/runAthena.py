@@ -427,7 +427,7 @@ if not postprocess:
         # set newPrefix to set copy tool in FileStager
         if directTmp != {}:
             # one PFN is enough since only the prefix is checked
-            newPrefix = directTmp.values()[0]
+            newPrefix = list(directTmp.values())[0]
         # collect LFNs
         curFiles   = []
         for id in directTmp.keys():
