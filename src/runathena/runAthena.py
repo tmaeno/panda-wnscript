@@ -845,7 +845,7 @@ if not postprocess:
                 print ("ERROR : cound not find setup.py in %s" % dbrFile)
                 sys.exit(EC_DBRelease)
             # run setup.py
-            dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nprint 'DBR setup finished'\nos.chdir('%s')\n" % \
+            dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nprint ('DBR setup finished')\nos.chdir('%s')\n" % \
                            (tmpSetupDir,os.getcwd())
             dbrSetupStr += "import sys\nsys.stdout.flush()\nsys.stderr.flush()\n"
 
@@ -1200,7 +1200,7 @@ try:
             return orig_ESAP__getattribute(self,attr)
 
     EventSelectorAthenaPool.__getattribute__ = _dummy
-    print 'Overwrite InputCollections'
+    print ('Overwrite InputCollections')
 except:
     try:
         EventSelectorAthenaPool.__getattribute__ = orig_ESAP__getattribute
