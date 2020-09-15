@@ -206,7 +206,10 @@ class HasSetDirectory(object):
     """
     def __init__(self, first_object, target_directory):
         super(HasSetDirectory, self).__init__(first_object, target_directory)
-        first_object.SetDirectory(None)
+        try:
+            first_object.SetDirectory(None)
+        except Exception:
+            first_object.SetDirectory(0)
         
 
 @define_merger(R.THnSparse)
