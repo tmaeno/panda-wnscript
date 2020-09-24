@@ -18,6 +18,7 @@ except ImportError:
     from urllib2 import urlopen, HTTPError
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
+from pandawnutil.root import root_utils
 
 # error code
 EC_MissingArg  = 10
@@ -150,24 +151,6 @@ else:
         print ("ERROR : " + tmpOut)
         propagate_missing_sandbox_error()
         sys.exit(EC_NoTarball)
-
-# get root
-useCvmfsROOT = False
-if rootVer != '':
-    print ('')
-    print ("--- setting ROOT version name ---")
-    if rootVer.count('.') != 2:
-        rootVer += ".00"
-    rootTgz = "root_v" + rootVer    
-    # CVMFS version format
-    if cmtConfig == '':
-        print ("Use i686-slc5-gcc43-opt for ROOT by default when --cmtConfig is unset")
-        rootCVMFS = rootVer + '-' + 'i686-slc5-gcc43-opt'
-    else:
-        rootCVMFS = rootVer + '-' + cmtConfig
-    useCvmfsROOT = True
-    print ("->",rootCVMFS)
-    print ('')
     
 # goto work dir
 workDir = currentDir + '/workDir'
@@ -176,15 +159,6 @@ if not useAthenaPackages:
     os.makedirs(workDir)
 print ("Goto workDir",workDir)
 os.chdir(workDir)
-
-# expand root 
-if rootVer != '':
-    rootBinDir = workDir + '/pandaRootBin'
-    os.makedirs(rootBinDir)
-    if not useCvmfsROOT:
-        os.chdir(rootBinDir)
-        commands_get_status_output('tar xvfzm %s/%s' % (currentDir,rootTgz))
-        os.chdir(workDir)
 
 # expand sources
 if not useAthenaPackages or noCompile:
@@ -218,28 +192,21 @@ if useAthenaPackages:
 
 # setup root
 if rootVer != '':
-    if useCvmfsROOT:
-        tmpSetupEnvStr  = "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase; "
-        tmpSetupEnvStr += "source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh --quiet; "
-        tmpSetupEnvStr += "source $ATLAS_LOCAL_ROOT_BASE/packageSetups/atlasLocalROOTSetup.sh --rootVersion=%s --skipConfirm; " % rootCVMFS
-        # check ROOT ver
-        print ('')
-        print ("--- check ROOT availability ---")
-        print (tmpSetupEnvStr)
-        tmpRootStat = os.system(tmpSetupEnvStr)
-        tmpRootStat %= 255
-        if tmpRootStat != 0:
-            print ("ERROR : ROOT %s is unavailable on CVMFS" % rootCVMFS)
-            sys.exit(EC_NoROOT)
-        setupEnv += tmpSetupEnvStr
-        setupEnv += "root.exe -q; "
-        # keep setup str for runGen
-        oFile = open('%s/pandaUseCvmfSetup.sh' % rootBinDir,'w')
+    rootCVMFS, tmpSetupEnvStr = root_utils.get_version_setup_string(rootVer, cmtConfig)
+    # check
+    print ("\n--- check ROOT availability ---")
+    print (tmpSetupEnvStr)
+    tmpRootStat = os.system(tmpSetupEnvStr + "root.exe -q")
+    tmpRootStat %= 255
+    if tmpRootStat != 0:
+        print ("ERROR : ROOT %s is unavailable on CVMFS" % rootCVMFS)
+        sys.exit(EC_NoROOT)
+    setupEnv += tmpSetupEnvStr
+    # keep setup str for runGen
+    rootBinDir = os.path.join(workDir, 'pandaRootBin')
+    os.makedirs(rootBinDir)
+    with open('%s/pandaUseCvmfSetup.sh' % rootBinDir, 'w') as oFile:
         oFile.write(tmpSetupEnvStr)
-        oFile.close()
-    else:
-        setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; root.exe -q; ' % \
-                    rootBinDir
 
 # init status
 status = 0
@@ -303,10 +270,6 @@ os.chdir(currentDir)
 # remove workdir
 if not debugFlag:
     commands_get_status_output('rm -rf %s' % workDir)
-
-# remove root
-if rootVer != '':
-    commands_get_status_output('rm -rf %s' % rootTgz)
     
 print ("--- finished with %s ---" % status)
 print (time.ctime())

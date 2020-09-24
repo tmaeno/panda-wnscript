@@ -17,6 +17,7 @@ except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
+from pandawnutil.root import root_utils
 
 # error code
 EC_MissingArg  = 10
@@ -53,6 +54,7 @@ notExpandDBR = False
 skipInputByRetry = []
 writeInputToTxt = ''
 rootVer   = ''
+cmtConfig = ''
 useRootCore = False
 useMana   = False
 manaVer   = ''
@@ -69,7 +71,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "dbrFile=","dbrRun=","notExpandDBR",
                             "useFileStager", "usePFCTurl", "accessmode=",
                             "skipInputByRetry=","writeInputToTxt=",
-                            "rootVer=","enable-jem","jem-config=",
+                            "rootVer=", "enable-jem", "jem-config=", "cmtConfig=",
                             "mergeOutput","mergeType=","mergeScript=",
                             "useRootCore","givenPFN","useMana","manaVer=",
                             "useCMake", "preprocess", "postprocess"
@@ -122,7 +124,9 @@ for o, a in opts:
     if o == "--writeInputToTxt":
         writeInputToTxt = a
     if o == "--rootVer":
-        rootVer = a 
+        rootVer = a
+    if o == "--cmtConfig":
+        cmtConfig = a
     if o == "--useRootCore":
         useRootCore = True
     if o == "--givenPFN":
@@ -165,6 +169,7 @@ try:
     print ("skipInputByRetry",skipInputByRetry)
     print ("writeInputToTxt",writeInputToTxt)
     print ("rootVer",rootVer)
+    print ("cmtConfig",cmtConfig)
     print ("useRootCore",useRootCore)
     print ("givenPFN",givenPFN)
     print ("useMana",useMana)
@@ -309,14 +314,15 @@ if not postprocess:
     # setup root
     if rootVer != '':
         rootBinDir = workDir + '/pandaRootBin'
-        # use CVMFS if setup script is available
+        # use setup script if available
         if os.path.exists('%s/pandaUseCvmfSetup.sh' % rootBinDir):
-            iFile = open('%s/pandaUseCvmfSetup.sh' % rootBinDir)
-            setupEnv += iFile.read()
-            iFile.close()
-            setupEnv += ' root.exe -q;'
+            with open('%s/pandaUseCvmfSetup.sh' % rootBinDir) as iFile:
+                tmpSetupEnvStr = iFile.read()
         else:
-            setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH; root.exe -q; ' % rootBinDir
+            rootCVMFS, tmpSetupEnvStr = root_utils.get_version_setup_string(rootVer, cmtConfig)
+        setupEnv += tmpSetupEnvStr
+        setupEnv += ' root.exe -q;'
+
     # RootCore
     if useRootCore:
         pandaRootCoreWD = os.path.abspath(runDir+'/__panda_rootCoreWorkDir')

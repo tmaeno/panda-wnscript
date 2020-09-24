@@ -17,6 +17,7 @@ except ImportError:
     import urllib
 import uuid
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output
+from pandawnutil.root import root_utils
 
 ## error codes
 EC_OK = 0
@@ -106,7 +107,7 @@ def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
     return turls
 
 
-def __cmd_setup_env__(workDir, rootVer):
+def __cmd_setup_env__(workDir, rootVer, cmtConfig):
 
     # create cmt dir to setup Athena
     setupEnv = ''
@@ -136,14 +137,14 @@ def __cmd_setup_env__(workDir, rootVer):
     # setup root
     if rootVer != '':
         rootBinDir = workDir + '/pandaRootBin'
-        # use CVMFS if setup script is available
+        # use setup script if available
         if os.path.exists('%s/pandaUseCvmfSetup.sh' % rootBinDir):
-            iFile = open('%s/pandaUseCvmfSetup.sh' % rootBinDir)
-            setupEnv += iFile.read()
-            iFile.close()
-            setupEnv += ' root.exe -q;'
+            with open('%s/pandaUseCvmfSetup.sh' % rootBinDir) as iFile:
+                tmpSetupEnvStr = iFile.read()
         else:
-            setupEnv += ' export ROOTSYS=%s/root; export PATH=$ROOTSYS/bin:$PATH; export LD_LIBRARY_PATH=$ROOTSYS/lib:$LD_LIBRARY_PATH; export PYTHONPATH=$ROOTSYS/lib:$PYTHONPATH; root.exe -q; ' % rootBinDir
+            rootCVMFS, tmpSetupEnvStr = root_utils.get_version_setup_string(rootVer, cmtConfig)
+        setupEnv += tmpSetupEnvStr
+        setupEnv += ' root.exe -q;'
 
     # RootCore
     if useRootCore:
@@ -489,6 +490,7 @@ if __name__ == "__main__":
     skipInputByRetry = []
     writeInputToTxt = ''
     rootVer   = ''
+    cmtConfig = ''
     runDir    = '.'
     useRootCore = False
     useCMake = False
@@ -520,8 +522,8 @@ if __name__ == "__main__":
                                     "dbrFile=","dbrRun=","notExpandDBR",
                                     "useFileStager", "usePFCTurl", "accessmode=",
                                     "skipInputByRetry=","writeInputToTxt=",
-                                    "rootVer=","enable-jem","jem-config=","useCMake",
-                                    "preprocess", "postprocess"
+                                    "rootVer=", "enable-jem", "jem-config=", "cmtConfig=",
+                                    "useCMake", "preprocess", "postprocess"
                                     ])
     except getopt.GetoptError as err:
         print (str(err))
@@ -581,6 +583,8 @@ if __name__ == "__main__":
             writeInputToTxt = a
         if o == "--rootVer":
             rootVer = a
+        if o == "--cmtConfig":
+            cmtConfig = a
         if o == "--useRootCore":
             useRootCore = True
         if o == "--libTgz":
@@ -631,6 +635,7 @@ if __name__ == "__main__":
         print ("skipInputByRetry",skipInputByRetry)
         print ("writeInputToTxt",writeInputToTxt)
         print ("rootVer",rootVer)
+        print ("cmtConfig", cmtConfig)
         print ("useRootCore",useRootCore)
         print ("useCMake",useCMake)
         print ("preprocess", preprocess)
@@ -697,7 +702,7 @@ if __name__ == "__main__":
                 print (commands_get_status_output('tar xvfzm %s/%s' % (currentDir,lib))[-1])
 
         ## compose athena/root environment setup command
-        cmdEnvSetup = __cmd_setup_env__(workDir, rootVer)
+        cmdEnvSetup = __cmd_setup_env__(workDir, rootVer, cmtConfig)
 
         ## create and change to rundir
         commands_get_status_output('mkdir -p %s' % runDir)
