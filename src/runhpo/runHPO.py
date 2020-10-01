@@ -26,6 +26,7 @@ EC_Tarball     = 143
 EC_WGET        = 146
 EC_EVENT       = 147
 EC_EXE_FAILED  = 150
+EC_NOEVENT     = 160
 
 print ("=== start ===")
 print (time.ctime())
@@ -436,7 +437,7 @@ if not postprocess:
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
         print ("exit due to no event")
-        sys.exit(0)
+        sys.exit(EC_NOEVENT)
 
     # get checkpoint file
     if checkPointToSave is not None:
