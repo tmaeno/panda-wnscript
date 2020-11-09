@@ -10,6 +10,7 @@ import time
 import getopt
 import uuid
 import json
+import signal
 import shutil
 import xml.dom.minidom
 try:
@@ -50,6 +51,7 @@ writeInputToTxt = ''
 scriptName = None
 preprocess = False
 postprocess = False
+coprocess = False
 outMetaFile = 'out_metadata.json'
 outMetricsFile = None
 pandaID = os.environ.get('PandaID')
@@ -79,7 +81,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "pandaID=", "taskID=",
                             "inSampleFile=", "outMetaFile=",
                             "outMetricsFile=", "dryRun",
-                            "preprocess", "postprocess",
+                            "preprocess", "postprocess", "coprocess",
                             "checkPointToSave=", "checkPointToLoad=",
                             "checkPointInterval="
                             ])
@@ -118,6 +120,8 @@ for o, a in opts:
         preprocess = True
     if o == "--postprocess":
         postprocess = True
+    if o == "--coprocess":
+        coprocess = True
     if o == '--pandaID':
         pandaID = int(a)
     if o == '--taskID':
@@ -189,7 +193,7 @@ workDir = currentDir+"/workDir"
 # for input
 directTmpTurl = {}
 directPFNs = {}
-if not postprocess:
+if not postprocess and not coprocess:
     # create work dir
     commands_get_status_output('rm -rf %s' % workDir)
     os.makedirs(workDir)
@@ -234,7 +238,7 @@ if not postprocess:
 os.chdir(workDir)
 
 # preprocess or single-step execution
-if not postprocess:
+if not postprocess and not coprocess:
     # expand libraries
     if libraries == '':
         tmpStat, tmpOut = 0, ''
@@ -275,7 +279,7 @@ if 'X509_USER_PROXY' in os.environ:
 else:
     certfile = '/tmp/x509up_u{0}'.format(os.getuid())
 keyfile = certfile
-if not postprocess:
+if not postprocess and not coprocess:
     commands_get_status_output('rm -rf {0}'.format(eventFileName))
     commands_get_status_output('rm -rf {0}'.format(sampleFileName))
     # check input files
@@ -494,6 +498,12 @@ if not postprocess:
     tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
     tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
 
+# read back event id and sample id
+with open(sampleFileName) as f:
+    tmp_str = f.read()
+    event_id, sample_id = tmp_str.split(',')
+
+if not postprocess:
     # run checkpoint uploader
     cup = None
     if checkPointToSave is not None:
@@ -501,6 +511,8 @@ if not postprocess:
                                  sourceURL, certfile, keyfile, debugFlag, offlineMode,
                                  eventStatusDumpFile)
         cup.start()
+    if coprocess:
+        signal.pause()
 
     print ("\n=== execute ===")
     print (com)
@@ -556,10 +568,6 @@ print ('')
 print ("=== ls in run dir : {0} ({1}) ===".format(runDir, os.getcwd()))
 print (commands_get_status_output('ls -l')[-1])
 print ('')
-
-with open(sampleFileName) as f:
-    tmp_str = f.read()
-    event_id, sample_id = tmp_str.split(',')
 
 # get loss
 print ("=== getting loss from {0} ===".format(outputFile))
