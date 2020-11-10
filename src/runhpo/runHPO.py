@@ -573,7 +573,7 @@ print ('')
 print ("=== getting loss from {0} ===".format(outputFile))
 loss = None
 if not os.path.exists(outputFile):
-    print ("{0} doesn't exist".format(outputFile))
+    print ("ERROR: {0} doesn't exist".format(outputFile))
     status = EC_EXE_FAILED
 else:
     with open(outputFile) as f:
@@ -613,16 +613,28 @@ if loss is not None and not dryRun:
             json.dump(data, f)
             print (data)
 
+# pilot iteration count
+if 'PILOT_EXEC_ITERATION_COUNT' in os.environ:
+    iterationCount = os.environ['PILOT_EXEC_ITERATION_COUNT']
+else:
+    iterationCount = None
+
+# copy old jobReport
+if iterationCount is not None:
+    commands_get_status_output('cp {} .'.format(os.path.join(currentDir, 'jobReport.json')))
+
 # add user job metadata
 try:
     from pandawnutil.wnmisc import misc_utils
     misc_utils.add_user_job_metadata(outMetaFile)
 except Exception:
-    pass
+    print ("WARNING: user metadata {} is corrupted".format(outMetaFile))
 
 # metrics
 if outMetricsFile is not None:
     newName, oldName = outMetricsFile.split('^')
+    if iterationCount is not None:
+        newName = "{}_{}".format(newName, iterationCount)
     tmpOldName = "%s_%s" % (oldName, sample_id)
     tmpStat, tmpOut = commands_get_status_output('mv {0} {1}; tar cvfz {2}/{3} {1}'.format(oldName, tmpOldName,
                                                                                            currentDir, newName))

@@ -54,7 +54,8 @@ def add_user_job_metadata(userJobMetadata='userJobMetadata.json'):
             merged_dict = json.load(f)
         os.rename(jobReport, jobReport+'.org')
     # add
-    merged_dict['user_job_metadata'] = tmp_dict
+    merged_dict.setdefault('user_job_metadata', dict())
+    merged_dict['user_job_metadata'].update(tmp_dict)
     # version number
     if 'reportVersion' not in merged_dict:
         merged_dict['reportVersion'] = '1.0.0'
