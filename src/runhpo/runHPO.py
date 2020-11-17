@@ -68,7 +68,16 @@ if 'PAYLOAD_OFFLINE_MODE' in os.environ:
     offlineMode = True
 else:
     offlineMode = False
+if 'PAYLOAD_TANDEM_MODE' in os.environ:
+    tandemMode = True
+else:
+    tandemMode = False
 localCheckPointFile = None
+
+# files for synchronization
+sync_file_in = '__payload_in_sync_file__'
+sync_file_out = '__payload_out_sync_file__'
+
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
@@ -186,6 +195,19 @@ except Exception as e:
 # save current dir
 currentDir = record_exec_directory()
 currentDirFiles = os.listdir('.')
+
+# wait until the sync file is created by the main exec
+if postprocess:
+    file_to_check = os.path.join(currentDir, sync_file_out)
+    if tandemMode:
+        print('waiting until the main exec is done')
+        while not os.path.exists(file_to_check):
+            time.sleep(10)
+    # remove sync files for subsequent execution
+    if os.path.exists(file_to_check):
+        os.remove(file_to_check)
+    if os.path.exists(os.path.join(currentDir, sync_file_in)):
+        os.remove(os.path.join(currentDir, sync_file_in))
 
 # work dir
 workDir = currentDir+"/workDir"
@@ -483,6 +505,10 @@ if not postprocess and not coprocess:
         tmpTrfFile.write('import os,sys\nstatus=os.system(r"""%s %s""")\n' % (scriptName,newJobParams))
         tmpTrfFile.write('status %= 255\nsys.exit(status)\n\n')
     tmpTrfFile.close()
+
+    # make sync file
+    with open(os.path.join(currentDir, sync_file_in), 'w') as f:
+        pass
 
     # return if preprocess
     if preprocess:
