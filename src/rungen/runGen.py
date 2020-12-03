@@ -255,7 +255,8 @@ if not postprocess:
             lfn = re.sub('^([^:]+:)','', lfn)
             lfn = re.sub('\?site.*$','', lfn)
             lfn = re.sub('\?select.*$','', lfn)
-            lfn = re.sub('\?GoogleAccessId.*$','',lfn)
+            lfn = re.sub('\?GoogleAccessId.*$','', lfn)
+            lfn = re.sub('\?X-Amz-Algorithm.*$', '', lfn)
             directPFNs[lfn] = directTmp[id]
 
     # expand libraries

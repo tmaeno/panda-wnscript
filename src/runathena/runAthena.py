@@ -405,7 +405,8 @@ if not postprocess:
             lfn = pfn.split('/')[-1]
             lfn = re.sub('__DQ2-\d+$','',lfn)
             lfn = re.sub('^([^:]+:)','', lfn)
-            lfn = re.sub('\?GoogleAccessId.*$','',lfn)
+            lfn = re.sub('\?GoogleAccessId.*$','', lfn)
+            lfn = re.sub('\?X-Amz-Algorithm.*$', '', lfn)
             # append
             guidMapFromPFC[lfn] = id
             directTmpTurl[id] = pfn
@@ -708,7 +709,8 @@ if not postprocess:
                 tmpLFNforPFC = fileName.split('/')[-1]
                 tmpLFNforPFC = re.sub('__DQ2-\d+$','',tmpLFNforPFC)
                 tmpLFNforPFC = re.sub('^([^:]+:)','', tmpLFNforPFC)
-                tmpLFNforPFC = re.sub('\?GoogleAccessId.*$','',tmpLFNforPFC)
+                tmpLFNforPFC = re.sub('\?GoogleAccessId.*$','', tmpLFNforPFC)
+                tmpLFNforPFC = re.sub('\?X-Amz-Algorithm.*$', '', tmpLFNforPFC)
                 if tmpLFNforPFC in guidMapFromPFC:
                     filesToPfcMap[guidMapFromPFC[tmpLFNforPFC]] = fileName
                 elif not givenPFN:
