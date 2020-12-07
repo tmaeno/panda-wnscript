@@ -11,6 +11,9 @@ def get_version_setup_string(root_ver, cmt_config):
         rootVer += ".00"
     # CVMFS version format
     if not cmt_config:
+        print("Use i686-slc5-gcc43-opt for ROOT by default when --cmtConfig is unset")
+        cmt_config = 'i686-slc5-gcc43-opt'
+        """
         cmt_config = None
 
         com = "export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase; "\
@@ -26,6 +29,7 @@ def get_version_setup_string(root_ver, cmt_config):
         else:
             print ("Use x86_64-centos7-gcc8-opt for ROOT by default when --cmtConfig is unset")
             cmt_config = 'x86_64-centos7-gcc8-opt'
+        """
     rootCVMFS = rootVer + '-' + cmt_config
     # setup string
     tmpSetupEnvStr = ("export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase; "
