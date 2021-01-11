@@ -73,6 +73,7 @@ if 'PAYLOAD_TANDEM_MODE' in os.environ:
 else:
     tandemMode = False
 localCheckPointFile = None
+segmentID = None
 
 # files for synchronization
 sync_file_in = '__payload_in_sync_file__'
@@ -92,15 +93,15 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "outMetricsFile=", "dryRun",
                             "preprocess", "postprocess", "coprocess",
                             "checkPointToSave=", "checkPointToLoad=",
-                            "checkPointInterval="
+                            "checkPointInterval=", "segmentID="
                             ])
 for o, a in opts:
     if o == "-l":
-        libraries=a
+        libraries = a
     if o == "-j":
-        scriptName=a
+        scriptName = a
     if o == "-p":
-        jobParams=urllib.unquote(a)
+        jobParams = urllib.unquote(a)
     if o == "-i":
         inputFiles = ast.literal_eval(a)
     if o == "-o":
@@ -153,43 +154,46 @@ for o, a in opts:
         checkPointToLoad = a
     if o == '--checkPointInterval':
         checkPointInterval = int(a)
+    if o == '--segmentID':
+        segmentID = int(a)
 
 # dump parameter
 try:
-    print ("=== parameters ===")
-    print ("PandaID", pandaID)
-    print ("taskID", taskID)
-    print ("libraries",libraries)
-    print ("runDir",runDir)
-    print ("jobParams",jobParams)
-    print ("inputFiles",inputFiles)
-    print ("scriptName",scriptName)
-    print ("outputFile",outputFile)
-    print ("inputGUIDs",inputGUIDs)
-    print ("oldPrefix",oldPrefix)
-    print ("newPrefix",newPrefix)
-    print ("directIn",directIn)
-    print ("usePFCTurl",usePFCTurl)
-    print ("debugFlag",debugFlag)
-    print ("sourceURL",sourceURL)
-    print ("inMap",inMap)
-    print ("archiveJobO",archiveJobO)
-    print ("writeInputToTxt",writeInputToTxt)
-    print ("preprocess", preprocess)
-    print ("postprocess", postprocess)
-    print ("pandaURL", pandaURL)
-    print ("iddsURL", iddsURL)
-    print ("inSampleFile", inSampleFile)
-    print ("outMetaFile", outMetaFile)
-    print ("outMetricsFile", outMetricsFile)
-    print ("dryRun", dryRun)
-    print ("checkPointToSave", checkPointToSave)
-    print ("checkPointToLoad", checkPointToLoad)
-    print ("checkPointInterval", checkPointInterval)
-    print ("offlineMode", offlineMode)
-    print ("===================\n")
+    print("=== parameters ===")
+    print("PandaID", pandaID)
+    print("taskID", taskID)
+    print("segmentID", segmentID)
+    print("libraries", libraries)
+    print("runDir", runDir)
+    print("jobParams", jobParams)
+    print("inputFiles", inputFiles)
+    print("scriptName", scriptName)
+    print("outputFile", outputFile)
+    print("inputGUIDs", inputGUIDs)
+    print("oldPrefix", oldPrefix)
+    print("newPrefix", newPrefix)
+    print("directIn", directIn)
+    print("usePFCTurl", usePFCTurl)
+    print("debugFlag", debugFlag)
+    print("sourceURL", sourceURL)
+    print("inMap", inMap)
+    print("archiveJobO", archiveJobO)
+    print("writeInputToTxt", writeInputToTxt)
+    print("preprocess", preprocess)
+    print("postprocess", postprocess)
+    print("pandaURL", pandaURL)
+    print("iddsURL", iddsURL)
+    print("inSampleFile", inSampleFile)
+    print("outMetaFile", outMetaFile)
+    print("outMetricsFile", outMetricsFile)
+    print("dryRun", dryRun)
+    print("checkPointToSave", checkPointToSave)
+    print("checkPointToLoad", checkPointToLoad)
+    print("checkPointInterval", checkPointInterval)
+    print("offlineMode", offlineMode)
+    print("===================\n")
 except Exception as e:
-    print ('ERROR: missing parameters : %s' % str(e))
+    print('ERROR: missing parameters : %s' % str(e))
     sys.exit(EC_MissingArg)
 
 # save current dir
@@ -404,6 +408,8 @@ if not postprocess and not coprocess:
             data['jobsetID'] = 0
             data['taskID'] = taskID
             data['nRanges'] = 1
+            if segmentID is not None:
+                data['segment_id'] = segmentID
             url = pandaURL + '/server/panda/getEventRanges'
             tmpStat, tmpOut = get_file_via_http(file_name=eventFileName, full_url=url, data=data,
                                                 headers={'Accept': 'application/json'},
