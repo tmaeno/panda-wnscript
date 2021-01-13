@@ -333,7 +333,7 @@ if not postprocess:
     setupEnv += "export TestArea=%s; " % workDir
 
 # use tracer only for single-step execution
-if not preprocess and not postprocess:
+if not preprocess and not postprocess and 'unset LD_PRELOAD' not in jobParams:
     # Tracer On
     try:
         from pandawnutil.tracer import RunTracer
