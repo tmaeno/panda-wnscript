@@ -64,6 +64,23 @@ def add_user_job_metadata(userJobMetadata='userJobMetadata.json'):
         json.dump(merged_dict, f)
 
 
+# make a tarball for log files in sub dirs
+def make_log_tarball_in_sub_dirs(tar_file_path):
+    try:
+        patt = ['*.log', 'log*']
+        patt_str = '-o '.join(['-name "{0}" '.format(i) for i in patt])
+        # command
+        com = 'find . -mindepth 2 '
+        com += r'-type f \( ' + patt_str + r'\) -print0 '
+        com += '| '
+        com += 'tar -z '
+        com += '-c -f {0} --null -T -'.format(tar_file_path)
+        commands_get_status_output(com)
+        if os.path.exists(tar_file_path) and os.path.getsize(tar_file_path) == 0:
+            os.remove(tar_file_path)
+    except Exception:
+        pass
+
 # make http body with multipart/form-data encoding
 def encode_multipart_form_data(name, file_name):
     boundary = uuid.uuid4().hex.upper()

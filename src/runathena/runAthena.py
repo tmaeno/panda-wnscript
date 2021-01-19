@@ -74,7 +74,7 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs
 
 # error code
 EC_PoolCatalog  = 20
@@ -1550,6 +1550,9 @@ commands_get_status_output('mv -f AthSummary.txt %s' % currentDir)
 # copy useful files
 for patt in ['runargs.*','runwrapper.*','jobReport.json','log.*']:
     commands_get_status_output('mv -f %s %s' % (patt,currentDir))
+
+# make tarball of log files in sub-dirs
+make_log_tarball_in_sub_dirs(os.path.join(currentDir, 'log.in_subdirs.tgz'))
 
 # go back to current dir
 os.chdir(currentDir)
