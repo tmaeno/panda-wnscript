@@ -847,7 +847,7 @@ if not postprocess:
                 print ("ERROR : cound not find setup.py in %s" % dbrFile)
                 sys.exit(EC_DBRelease)
             # run setup.py
-            dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nprint ('DBR setup finished')\nos.chdir('%s')\n" % \
+            dbrSetupStr  = "import os\nos.chdir('%s')\nexec(open('setup.py').read())\nprint ('DBR setup finished')\nos.chdir('%s')\n" % \
                            (tmpSetupDir,os.getcwd())
             dbrSetupStr += "import sys\nsys.stdout.flush()\nsys.stderr.flush()\n"
 
