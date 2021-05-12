@@ -339,6 +339,8 @@ try:
 except Exception:
     sys.exit(EC_MissingArg)
 
+origNumInputFiles = len(inputFiles)
+
 if not postprocess:
     # disable direct input for unsupported cases
     if directIn:
@@ -759,7 +761,7 @@ if not postprocess:
             if notSkipMissing and len(inputFiles) != len(tmpFiles):
                 print ("Some input files are missing")
                 sys.exit(EC_MissingInput)
-        if len(inputFiles)==0:
+        if origNumInputFiles > 0 and len(inputFiles) == 0:
             print ("No input file is available after corruption check")
             sys.exit(EC_NoInput)
 
