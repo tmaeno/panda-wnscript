@@ -28,6 +28,8 @@ EC_WGET        = 146
 EC_EVENT       = 147
 EC_EXE_FAILED  = 150
 EC_NOEVENT     = 160
+EC_NOMOREEVENT = 161
+EC_MAXLOOP     = 162
 
 print ("=== start ===")
 print (time.ctime())
@@ -74,6 +76,7 @@ else:
     tandemMode = False
 localCheckPointFile = None
 segmentID = None
+maxLoopCount = None
 
 # files for synchronization
 sync_file_in = '__payload_in_sync_file__'
@@ -93,7 +96,8 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:j:l:p:a:",
                             "outMetricsFile=", "dryRun",
                             "preprocess", "postprocess", "coprocess",
                             "checkPointToSave=", "checkPointToLoad=",
-                            "checkPointInterval=", "segmentID="
+                            "checkPointInterval=", "segmentID=",
+                            "maxLoopCount="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -156,6 +160,8 @@ for o, a in opts:
         checkPointInterval = int(a)
     if o == '--segmentID':
         segmentID = int(a)
+    if o == '--maxLoopCount':
+        maxLoopCount = int(a)
 
 # dump parameter
 try:
@@ -191,14 +197,21 @@ try:
     print("checkPointToLoad", checkPointToLoad)
     print("checkPointInterval", checkPointInterval)
     print("offlineMode", offlineMode)
+    print("maxLoopCount", maxLoopCount)
     print("===================\n")
 except Exception as e:
-    print('ERROR: missing parameters : %s' % str(e))
+    print('ERROR : missing parameters : %s' % str(e))
     sys.exit(EC_MissingArg)
 
 # save current dir
 currentDir = record_exec_directory()
 currentDirFiles = os.listdir('.')
+
+# loop count
+if 'PAYLOAD_LOOP_COUNT' in os.environ:
+    loopCount = int(os.environ['PAYLOAD_LOOP_COUNT'])
+else:
+    loopCount = None
 
 # wait until the sync file is created by the main exec
 if postprocess:
@@ -220,6 +233,11 @@ workDir = currentDir+"/workDir"
 directTmpTurl = {}
 directPFNs = {}
 if not postprocess and not coprocess:
+    # check loop count
+    if maxLoopCount and loopCount:
+        if maxLoopCount <= loopCount:
+            print("INFO : exit since loop count $PAYLOAD_LOOP_COUNT={} reached the limit".format(loopCount))
+            sys.exit(EC_MAXLOOP)
     # create work dir
     commands_get_status_output('rm -rf %s' % workDir)
     os.makedirs(workDir)
@@ -470,8 +488,11 @@ if not postprocess and not coprocess:
     # no event
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
-        print ("exit due to no event")
-        sys.exit(EC_NOEVENT)
+        if loopCount is None or loopCount == 0:
+            print ("INFO : exit due to no event available")
+            sys.exit(EC_NOEVENT)
+        print("INFO : exit due to no more event available")
+        sys.exit(EC_NOMOREEVENT)
 
     # get checkpoint file
     if checkPointToSave is not None:
@@ -523,7 +544,7 @@ if not postprocess and not coprocess:
         commands_get_status_output('chmod +x {0}'.format(tmpTrfName))
         print ("\n==== Result ====")
         print ("prepossessing successfully done")
-        print ("produced {0}".format(tmpTrfName))
+        print ("INFO : produced {0}".format(tmpTrfName))
         sys.exit(0)
 
     com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)
@@ -593,7 +614,7 @@ else:
     # no event
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
-        print ("exit due to no event")
+        print ("INFO : exit due to no event")
         sys.exit(0)
     # set 0 for postprocess
     status = 0
@@ -726,8 +747,8 @@ if not debugFlag:
 # return
 print ("\n==== Result ====")
 if status:
-    print ("execute script: Running script failed : StatusCode=%d" % status)
+    print ("ERROR : execute script: Running script failed : StatusCode=%d" % status)
     sys.exit(status)
 else:
-    print ("execute script: Running script was successful")
+    print ("INFO : execute script: Running script was successful")
     sys.exit(0)
