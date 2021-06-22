@@ -207,11 +207,11 @@ except Exception as e:
 currentDir = record_exec_directory()
 currentDirFiles = os.listdir('.')
 
-# loop count
-if 'PAYLOAD_LOOP_COUNT' in os.environ:
-    loopCount = int(os.environ['PAYLOAD_LOOP_COUNT'])
+# pilot iteration count
+if 'PILOT_EXEC_ITERATION_COUNT' in os.environ:
+    iterationCount = os.environ['PILOT_EXEC_ITERATION_COUNT']
 else:
-    loopCount = None
+    iterationCount = None
 
 # wait until the sync file is created by the main exec
 if postprocess:
@@ -234,9 +234,9 @@ directTmpTurl = {}
 directPFNs = {}
 if not postprocess and not coprocess:
     # check loop count
-    if maxLoopCount and loopCount:
-        if maxLoopCount <= loopCount:
-            print("INFO : exit since loop count $PAYLOAD_LOOP_COUNT={} reached the limit".format(loopCount))
+    if maxLoopCount and iterationCount:
+        if maxLoopCount <= int(iterationCount):
+            print("INFO : exit since loop count PILOT_EXEC_ITERATION_COUNT={} reached the limit".format(iterationCount))
             sys.exit(EC_MAXLOOP)
     # create work dir
     commands_get_status_output('rm -rf %s' % workDir)
@@ -488,11 +488,12 @@ if not postprocess and not coprocess:
     # no event
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
-        if loopCount is None or loopCount == 0:
+        if iterationCount is None or int(iterationCount) == 0:
             print ("INFO : exit due to no event available")
             sys.exit(EC_NOEVENT)
         print("INFO : exit due to no more event available")
-        sys.exit(EC_NOMOREEVENT)
+        sys.exit(EC_NOEVENT)
+        #sys.exit(EC_NOMOREEVENT)
 
     # get checkpoint file
     if checkPointToSave is not None:
@@ -667,12 +668,6 @@ if loss is not None and not dryRun:
             data = {str(pandaID): [{'eventRangeID': event_id, 'eventStatus': 'finished', 'loss': loss}]}
             json.dump(data, f)
             print (data)
-
-# pilot iteration count
-if 'PILOT_EXEC_ITERATION_COUNT' in os.environ:
-    iterationCount = os.environ['PILOT_EXEC_ITERATION_COUNT']
-else:
-    iterationCount = None
 
 # copy old jobReport
 if iterationCount is not None:
