@@ -705,6 +705,7 @@ if not debugFlag:
 
 # return
 print ("\n==== Result ====")
+print (time.ctime())
 if status:
     print ("execute script: Running script failed : StatusCode=%d" % status)
     sys.exit(status)
