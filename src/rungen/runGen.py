@@ -10,6 +10,7 @@ import time
 import getopt
 import glob
 import uuid
+import datetime
 import xml.dom.minidom
 try:
     import urllib.request as urllib
@@ -28,7 +29,7 @@ EC_WGET        = 146
 EC_LFC         = 147
 
 print ("=== start ===")
-print (time.ctime())
+print(datetime.datetime.utcnow())
 
 debugFlag    = False
 libraries    = ''
@@ -705,7 +706,7 @@ if not debugFlag:
 
 # return
 print ("\n==== Result ====")
-print (time.ctime())
+print(datetime.datetime.utcnow())
 if status:
     print ("execute script: Running script failed : StatusCode=%d" % status)
     sys.exit(status)
