@@ -56,6 +56,7 @@ import sys
 import ast
 import glob
 import getopt
+import datetime
 try:
     import urllib.request as urllib
 except ImportError:
@@ -75,6 +76,10 @@ except NameError:
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs
+
+print ("=== start ===")
+print(datetime.datetime.utcnow())
+print("")
 
 # error code
 EC_PoolCatalog  = 20
@@ -1328,6 +1333,26 @@ theApp.initialize = fakeTheAppinitialize
         print ("")
         jobO = newJobO
 
+    # change output names
+    if runTrf and 'IROOT' in outputFiles:
+        print("=== change jobO for TRF outputs ===")
+        newJobO = jobO
+        newList = []
+        for src_name, dst_name in outputFiles['IROOT']:
+            if '*' not in src_name:
+                oldJobO = newJobO
+                newJobO = re.sub(r'(?P<term1>=| |"|\')'+src_name+r'(?P<term2> |"|\'|,|;|$)',
+                                 r'\g<term1>'+dst_name+r'\g<term2>', oldJobO)
+                if newJobO != oldJobO:
+                    continue
+            newList.append((src_name, dst_name))
+        outputFiles['IROOT'] = newList
+        print("          Old : " + jobO)
+        print("          New : " + newJobO)
+        print("  outputFiles : {}".format(str(outputFiles)))
+        print("")
+        jobO = newJobO
+
     # get PDGTABLE.MeV
     commands_get_status_output('get_files PDGTABLE.MeV')
 
@@ -1362,7 +1387,8 @@ theApp.initialize = fakeTheAppinitialize
         com += 'cd -;env;'
     else:
         cmakeSetupDir = 'usr/*/*/InstallArea/*'
-        print ("CMake setup dir : {0}".format(cmakeSetupDir))
+        print("=== CMake setup ===")
+        print ("setup dir : {0}".format(cmakeSetupDir))
         if len(glob.glob(cmakeSetupDir)) > 0:
             com += 'source {0}/setup.sh;'.format(cmakeSetupDir)
         else:
@@ -1571,6 +1597,7 @@ if not debugFlag:
 # return
 print ('')
 print ("=== result ===")
+print(datetime.datetime.utcnow())
 if status:
     print ("execute script: Running athena failed : %d" % status)
     sys.exit(EC_AthenaFail)
