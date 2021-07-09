@@ -1344,7 +1344,7 @@ theApp.initialize = fakeTheAppinitialize
                 newJobO = re.sub(r'(?P<term1>=| |"|\')'+src_name+r'(?P<term2> |"|\'|,|;|$)',
                                  r'\g<term1>'+dst_name+r'\g<term2>', oldJobO)
                 if newJobO != oldJobO:
-                    continue
+                    src_name = dst_name
             newList.append((src_name, dst_name))
         outputFiles['IROOT'] = newList
         print("          Old : " + jobO)
@@ -1508,6 +1508,9 @@ if 'IROOT' in outputFiles:
             # archive *
             commands_get_status_output('tar cvfz %s %s' % (iROOT[-1],iROOT[0]))
         else:
+            src_name, dst_name = iROOT
+            if src_name == dst_name:
+                continue
             # rename 
             commands_get_status_output('mv %s %s' % iROOT)
         # modify PoolFC.xml
