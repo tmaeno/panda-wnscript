@@ -62,6 +62,7 @@ manaVer   = ''
 useCMake  = False
 preprocess = False
 postprocess = False
+execWithRealFileNames = False
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -75,7 +76,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "rootVer=", "enable-jem", "jem-config=", "cmtConfig=",
                             "mergeOutput","mergeType=","mergeScript=",
                             "useRootCore","givenPFN","useMana","manaVer=",
-                            "useCMake", "preprocess", "postprocess"
+                            "useCMake", "preprocess", "postprocess", "execWithRealFileNames"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -142,6 +143,8 @@ for o, a in opts:
         preprocess = True
     if o == "--postprocess":
         postprocess = True
+    if o == "--execWithRealFileNames":
+        execWithRealFileNames = True
 
 # dump parameter
 try:
@@ -178,6 +181,7 @@ try:
     print ("useCMake",useCMake)
     print ("preprocess", preprocess)
     print ("postprocess", postprocess)
+    print ("execWithRealFileNames", execWithRealFileNames)
     print ("===================")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -523,6 +527,22 @@ if not postprocess:
                     print ("%s to %s : %s" % (tmpKeyName,writeInputToTxtMap[tmpKeyName],inStr))
         if writeInputToTxtMap != {}:
             print ('')
+    if execWithRealFileNames:
+        newOutputFiles = {}
+        # use real output filenames
+        for src_name in outputFiles:
+            dst_name = outputFiles[src_name]
+            if '*' not in src_name:
+                oldJobO = newJobParams
+                newJobParams = re.sub(r'(?P<term1>=| |"|\'|>)'+src_name+r'(?P<term2> |"|\'|,|;|$)',
+                                      r'\g<term1>'+dst_name+r'\g<term2>', oldJobO)
+                if newJobParams != oldJobO:
+                    src_name = dst_name
+            newOutputFiles[src_name] = dst_name
+        outputFiles = newOutputFiles
+        print("=== change exec with real outputs ===")
+        print("          New : " + newJobParams)
+        print("  outputFiles : {}\n".format(str(outputFiles)))
 
     # construct command
     com = setupEnv
@@ -619,7 +639,8 @@ for oldName in outputFiles:
         # archive *
         print (commands_get_status_output('tar cvfz %s %s' % (newName,oldName))[-1])
     else:
-        print (commands_get_status_output('mv %s %s' % (oldName,newName))[-1])
+        if oldName != newName:
+            print (commands_get_status_output('mv %s %s' % (oldName,newName))[-1])
     # modify PoolFC.xml
     pfcName = 'PoolFileCatalog.xml'
     pfcSt,pfcOut = commands_get_status_output('ls %s' % pfcName)
@@ -629,7 +650,8 @@ for oldName in outputFiles:
             pFile = open(pfcName)
             for line in pFile:
                 # replace file name
-                line = re.sub('"%s"' % oldName, '"%s"' % newName, line)
+                if oldName != newName:
+                    line = re.sub('"%s"' % oldName, '"%s"' % newName, line)
                 pLines += line
             pFile.close()
             # overwrite
@@ -646,7 +668,8 @@ for oldName in outputFiles:
             pFile = open(jsonName)
             for line in pFile:
                 # replace file name
-                line = re.sub('"%s"' % oldName, '"%s"' % newName, line)
+                if oldName != newName:
+                    line = re.sub('"%s"' % oldName, '"%s"' % newName, line)
                 pLines += line
             pFile.close()
             # overwrite
