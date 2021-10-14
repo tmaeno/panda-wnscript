@@ -1349,7 +1349,7 @@ theApp.initialize = fakeTheAppinitialize
         outputFiles['IROOT'] = newList
         print("          Old : " + jobO)
         print("          New : " + newJobO)
-        print("  outputFiles : {}".format(str(outputFiles)))
+        print("  outputFiles : {0}".format(str(outputFiles)))
         print("")
         jobO = newJobO
 
