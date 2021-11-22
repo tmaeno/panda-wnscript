@@ -655,7 +655,7 @@ print ('')
 if loss is not None and not dryRun:
     if not offlineMode:
         print ("=== reporting loss to iDDS ===")
-        tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss)
+        tmpStat, tmpOut = update_hpo_sample(iddsURL, taskID, sample_id, loss, certfile, keyfile)
         if not tmpStat:
             print ('ERROR: {0}\n'.format(tmpOut))
         else:

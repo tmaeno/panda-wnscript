@@ -251,10 +251,11 @@ def get_hpo_sample(idds_url, task_id, sample_id):
 
 
 # update HPO sample
-def update_hpo_sample(idds_url, task_id, sample_id, loss):
+def update_hpo_sample(idds_url, task_id, sample_id, loss, certfile, keyfile):
     url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', str(sample_id), str(loss))
     file_name = '__tmp_update.out'
-    s, o = get_file_via_http(file_name=file_name, full_url=url, method='PUT')
+    s, o = get_file_via_http(file_name=file_name, full_url=url, method='PUT',
+                             certfile=certfile, keyfile=keyfile)
     if not s:
         return False, o
     try:
