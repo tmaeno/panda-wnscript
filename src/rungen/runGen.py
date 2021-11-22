@@ -355,6 +355,11 @@ os.chdir(runDir)
 
 # preprocess or single-step execution
 if not postprocess:
+    # move secrets
+    secrets_name = 'panda_secrets.json'
+    secrets_path = os.path.join(currentDir, secrets_name)
+    if os.path.exists(secrets_path):
+        os.rename(secrets_path, os.path.join(runDir, secrets_name))
     # customize .rootrc in the current dir and HOME
     rootRcDirs = [runDir]
     if 'HOME' in os.environ:
