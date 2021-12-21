@@ -1,12 +1,12 @@
 #!/bin/bash
 
 "exec" "python" "-u" "$0" "$@"
-
+import json
 import os
 import re
 import sys
 import ast
-import time
+import base64
 import getopt
 import glob
 import uuid
@@ -354,11 +354,37 @@ commands_get_status_output('mkdir %s' % runDir)
 os.chdir(runDir)
 
 # preprocess or single-step execution
+secrets_source = None
 if not postprocess:
     # move secrets
     secrets_name = 'panda_secrets.json'
     secrets_path = os.path.join(currentDir, secrets_name)
     if os.path.exists(secrets_path):
+        # parse secrets
+        try:
+            with open(secrets_path) as f:
+                secrets_data = json.load(f)
+            if secrets_data:
+                secrets_source = os.path.join(runDir, 'panda_secrets.sh')
+                set_secret_env = False
+                with open(secrets_source, 'w') as secrets_source_file:
+                    for k in secrets_data:
+                        v = secrets_data[k]
+                        # secret file
+                        if k.startswith('___file___:'):
+                            k = re.sub('^___file___:', '', k)
+                            with open(k, 'wb') as f:
+                                f.write(base64.b64decode(v))
+                        else:
+                            # export key-value as an env variable
+                            v = v.replace(r'"', r'\"')
+                            secrets_source_file.write('export {0}="{1}"\n'.format(k, v))
+                            set_secret_env = True
+                # not use source if no env variable is set
+                if not set_secret_env:
+                    secrets_source = None
+        except Exception as e:
+            print("\nfailed to parse secrets with {0}\n".format(str(e)))
         os.rename(secrets_path, os.path.join(runDir, secrets_name))
     # customize .rootrc in the current dir and HOME
     rootRcDirs = [runDir]
@@ -569,6 +595,8 @@ if not postprocess:
                 os.environ['X509_CERT_DIR']))
         tmpTrfFile.write('export PATH=$PATH:.\n')
         tmpTrfFile.write('echo\necho ==== env ====\nenv\necho\necho ==== start ====\n')
+        if secrets_source:
+            tmpTrfFile.write('source {0}\n'.format(secrets_source))
         tmpTrfFile.write('{0} {1}\n'.format(scriptName,newJobParams))
     else:
         # wrap commands to invoke execve even if preload is removed/changed
@@ -586,12 +614,13 @@ if not postprocess:
         print ("preprocessing successfully done")
         sys.exit(0)
 
+    if secrets_source:
+        com += 'source {0}\n'.format(secrets_source)
     com += 'cat %s;python -u %s' % (tmpTrfName,tmpTrfName)
 
     # temporary output to avoid MemeoryError
     tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
     tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
-
 
     print ("=== execute ===")
     print (com)
