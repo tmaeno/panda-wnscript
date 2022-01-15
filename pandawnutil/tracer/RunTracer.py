@@ -15,14 +15,20 @@ class RunTracer:
     # constructor
     def __init__(self,debugFlag=False):
         self.wrapperName = 'wrapper'
-        self.archOptMap  = {'m32':'lib','m64':'lib64'}
+        self.archOptMap  = [('32bit', '-m32', 'lib'), ('64bit', '-m64', 'lib64')]
+        try:
+            import platform
+            if platform.processor() in ['aarch64']:
+                self.archOptMap = [('32bit', None, 'lib'), ('64bit', None, 'lib64')]
+        except Exception:
+            pass
         self.libBaseDir  = None
         self.logName     = ''
         self.debugFlag   = debugFlag
 
 
     # make wrapper
-    def make(self):
+    def make(self, verbose=False):
         print ("\n===== make PandaTracer =====")
         # create lib base dir
         if self.debugFlag:
@@ -39,14 +45,18 @@ class RunTracer:
                    (self.libBaseDir,self.wrapperName))
         outH.close()
         # make lib and lib64
-        for archOpt in self.archOptMap:
-            archLib = self.archOptMap[archOpt]
-            step1 = 'gcc -%s -I. -fPIC -c -Wall %s/%s.c -o %s.o' % \
-                    (archOpt,modFullPath,self.wrapperName,self.wrapperName)
-            step2 = 'gcc -%s -shared %s.o -ldl -lstdc++ -o %s/%s/%s.so' % \
-                    (archOpt,self.wrapperName,self.libBaseDir,archLib,self.wrapperName)
-            stepd = 'gcc -shared -fpic -o %s/%s/%s.so -xc /dev/null -%s' % \
-                    (self.libBaseDir,archLib,self.wrapperName,archOpt)
+        for arcStr, archOpt, archLib in self.archOptMap:
+            print("  {0} making with opt={1} in {2}".format(arcStr, archOpt, archLib))
+            if archOpt:
+                step_base = 'gcc {0} '.format(archOpt)
+            else:
+                step_base = 'gcc '
+            step1 = step_base + '-I. -fPIC -c -Wall %s/%s.c -o %s.o' % \
+                    (modFullPath, self.wrapperName, self.wrapperName)
+            step2 = step_base + '-shared %s.o -ldl -lstdc++ -o %s/%s/%s.so' % \
+                    (self.wrapperName,self.libBaseDir,archLib,self.wrapperName)
+            step_d = step_base + '-shared -fpic -o %s/%s/%s.so -xc /dev/null ' % \
+                    (self.libBaseDir,archLib,self.wrapperName)
             # makedir
             try:
                 os.makedirs(self.libBaseDir+'/'+archLib)
@@ -54,32 +64,42 @@ class RunTracer:
                 pass
             isFailed = False
             # make
+            if verbose:
+                print("    com for make: {0}".format(step1))
             p = subprocess.Popen(step1.split(), stdout=subprocess.PIPE,
                                       stderr=subprocess.PIPE)
             out, err = p.communicate()
             if p.returncode != 0:
-                #print (" com : {0} failed with {1}".format(step1, err))
+                if verbose:
+                    print ("    failed with {0}".format(err))
                 isFailed = True
             else:
+                if verbose:
+                    print("    com for so: {0}".format(step2))
                 p = subprocess.Popen(step2.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    #print (" com : {0} failed with {1}".format(step2, err))
+                    if verbose:
+                        print("    failed with {0}".format(err))
                     isFailed = True
             # make dummy if failed
-            if isFailed:        
-                #print ("  %s failed" % archOpt)
-                p = subprocess.Popen(stepd.split(), stdout=subprocess.PIPE,
+            if isFailed:
+                if verbose:
+                    print("    com for dummy: {0}".format(step_d))
+                p = subprocess.Popen(step_d.split(), stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE)
                 out, err = p.communicate()
                 if p.returncode != 0:
-                    #print (" com : {0} failed with {1}".format(stepd, err))
-                    print ("  %s is not supported" % archOpt)
+                    if verbose:
+                        print("    failed with {0}".format(err))
+                    print ("  %s is not supported" % arcStr)
                 else:
-                    print ("  %s uses dummy" % archOpt)
+                    print ("  %s uses dummy" % arcStr)
             else:
-                print ("  %s succeeded" % archOpt)
+                print ("  %s succeeded" % arcStr)
+            if verbose:
+                print("")
         # log name
         commands_get_status_output('touch %s' % self.getLogName())
         print ("Log location -> %s" % self.getLogName())
