@@ -229,10 +229,10 @@ def record_exec_directory():
 
 
 # get HPO sample
-def get_hpo_sample(idds_url, task_id, sample_id):
+def get_hpo_sample(idds_url, task_id, sample_id, certfile, keyfile):
     url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', str(sample_id), 'null', 'null')
     file_name = '__tmp_get.out'
-    s, o = get_file_via_http(file_name=file_name, full_url=url)
+    s, o = get_file_via_http(file_name=file_name, full_url=url, certfile=certfile, keyfile=keyfile)
     if not s:
         return False, o
     try:

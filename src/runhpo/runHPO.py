@@ -459,7 +459,7 @@ if not postprocess and not coprocess:
                 # check with iDDS
                 if not offlineMode:
                     print ("\n=== getting HP samples from iDDS ===")
-                    tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id)
+                    tmpStat, tmpOut = get_hpo_sample(iddsURL, taskID, sample_id, certfile, keyfile)
                 else:
                     print ("\n=== getting HP samples from json ===")
                     tmpStat, tmpOut = True, event['hp_point']
