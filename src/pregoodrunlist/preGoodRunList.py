@@ -1,6 +1,6 @@
 #!/bin/bash
 
-"exec" "python" "-u" "$0" "$@"
+"exec" "python3" "-u" "$0" "$@"
 
 import os
 import sys

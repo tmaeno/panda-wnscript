@@ -52,6 +52,25 @@ for TARGET in "runMerge"
   echo
 done
 
+# include non-python files with CVMFS setup
+for TARGET in "preGoodRunList"
+  do
+  echo "Start " $TARGET
+  EXESRCDIR=$SRCDIR/`echo $TARGET | tr "[A-Z]" "[a-z]"`
+  EXENAME=$DISTDIR/$TARGET-`cat $EXESRCDIR/version`
+  rm -f $TMPZIP
+  # include utils
+  zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
+  # script main
+  cd $EXESRCDIR
+  zip -o $TMPZIP -r . -i *
+  cd $WORKDIR
+  # make self-exracting executable
+  cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME
+  chmod +x $EXENAME
+  echo
+done
+
 # just copy
 for TARGET in "runcontainer"
   do
