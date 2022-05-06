@@ -124,7 +124,8 @@ os.chdir(currentDir)
 metaDict = {}
 metaDict['%%INDS%%'] = epDs
 metaDict['%%INLFNLIST%%'] = epLFNs
-metaFileName = 'metadata.xml'
+metaDict['reportVersion'] = '1.0.0'
+metaFileName = 'jobReport.json'
 commands_get_status_output('rm -rf %s' % metaFileName)
 mFH = open(metaFileName,'w')
 import json
