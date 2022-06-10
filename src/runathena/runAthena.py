@@ -882,7 +882,11 @@ def _Service(str):
         if byteStream:
             # BS
             oFile.write('ByteStreamInputSvc = _Service( "ByteStreamInputSvc" )\n')
-            oFile.write('ByteStreamInputSvc.FullFileName = %s\n' % inputFiles)
+            oFile.write('try:\n')
+            oFile.write('    ByteStreamInputSvc.FullFileName = %s\n' % inputFiles)
+            oFile.write('except:\n')
+            oFile.write('    EventSelector = _Service( "EventSelector" )\n')
+            oFile.write('    EventSelector.Input = %s\n' % inputFiles)
         else:
             oFile.write('EventSelector = _Service( "EventSelector" )\n')
             # normal POOL
