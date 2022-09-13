@@ -11,6 +11,7 @@ import getopt
 import glob
 import uuid
 import datetime
+import shutil
 import xml.dom.minidom
 try:
     import urllib.request as urllib
@@ -63,6 +64,8 @@ useCMake  = False
 preprocess = False
 postprocess = False
 execWithRealFileNames = False
+fileToSave = ''
+fileToLoad = ''
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -76,7 +79,8 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "rootVer=", "enable-jem", "jem-config=", "cmtConfig=",
                             "mergeOutput","mergeType=","mergeScript=",
                             "useRootCore","givenPFN","useMana","manaVer=",
-                            "useCMake", "preprocess", "postprocess", "execWithRealFileNames"
+                            "useCMake", "preprocess", "postprocess", "execWithRealFileNames",
+                            "fileToSave=", "fileToLoad="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -145,6 +149,10 @@ for o, a in opts:
         postprocess = True
     if o == "--execWithRealFileNames":
         execWithRealFileNames = True
+    if o == '--fileToLoad':
+        fileToLoad = a
+    if o == '--fileToSave':
+        fileToSave = a
 
 # dump parameter
 try:
@@ -182,6 +190,8 @@ try:
     print ("preprocess", preprocess)
     print ("postprocess", postprocess)
     print ("execWithRealFileNames", execWithRealFileNames)
+    print ("fileToLoad", fileToLoad)
+    print ("fileToSave", fileToSave)
     print ("===================")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -500,6 +510,19 @@ if not postprocess:
     # put ROOT.py to avoid a crash caused by long argument at direct access site
     commands_get_status_output('rm ROOT.py')
 
+    # load file
+    if fileToLoad:
+        print("\n=== loading file ===")
+        fileToLoadDst, fileToLoadSrc = fileToLoad.split(':')
+        print('{0} -> {1}'.format(fileToLoadSrc, fileToLoadDst))
+        url = '%s/cache/%s' % (sourceURL, fileToLoadSrc)
+        tmpStat, tmpOut = get_file_via_http(full_url=url, force_access=True)
+        if not tmpStat:
+            print("ERROR: failed to load {0} : {1}".format(fileToLoadDst, tmpOut))
+        else:
+            shutil.move(fileToLoadSrc, fileToLoadDst)
+        print('')
+
     print ("=== ls %s ===" % runDir)
     print (commands_get_status_output('ls -l')[-1])
     print ('')
@@ -666,6 +689,30 @@ print ("=== ls in run dir : %s ===" % runDir)
 print (commands_get_status_output('ls -l')[-1])
 print ('')
 
+if fileToSave:
+    print("\n=== saving file ===")
+    fileToSaveSrc, fileToSaveDst = fileToSave.split(':')
+    if not os.path.exists(fileToSaveSrc):
+        print('skip since {0} is missing'.format(fileToSaveSrc))
+    else:
+        print('{0} -> {1} on {2}'.format(fileToSaveSrc, fileToSaveDst, sourceURL))
+        shutil.copy(fileToSaveSrc, fileToSaveDst)
+        if 'X509_USER_PROXY' in os.environ:
+            certfile = os.environ['X509_USER_PROXY']
+        else:
+            certfile = '/tmp/x509up_u{0}'.format(os.getuid())
+        url = sourceURL + '/server/panda/putFile'
+        tmpDump = '__saveDump.out'
+        tmpStat, tmpOut = get_file_via_http(file_name=tmpDump, full_url=url,
+                                            filename_to_upload=fileToSaveDst, force_access=True,
+                                            certfile=certfile, keyfile=certfile)
+        print('status={0} {1}'.format(tmpStat, tmpOut))
+        if not tmpStat:
+            print('ERROR: failed to save {0}'.format(fileToSaveSrc))
+        with open(tmpDump) as f:
+            print('out=' + str(f.read()))
+        print('')
+
 # rename output files
 for oldName in outputFiles:
     newName = outputFiles[oldName]
@@ -754,7 +801,7 @@ for patt in ['runargs.*','runwrapper.*','jobReport.json','log.*']:
 os.chdir(currentDir)
 
 print ('')
-print (commands_get_status_output('pwd')[-1])
+print ("=== ls in work dir : %s ===" % os.getcwd())
 print (commands_get_status_output('ls -l')[-1])
 
 # remove work dir
