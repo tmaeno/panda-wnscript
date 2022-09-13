@@ -12,6 +12,7 @@ import glob
 import uuid
 import datetime
 import shutil
+import gzip
 import xml.dom.minidom
 try:
     import urllib.request as urllib
@@ -520,7 +521,8 @@ if not postprocess:
         if not tmpStat:
             print("ERROR: failed to load {0} : {1}".format(fileToLoadDst, tmpOut))
         else:
-            shutil.move(fileToLoadSrc, fileToLoadDst)
+            with gzip.open(fileToLoadSrc, 'rb') as f_in, open(fileToLoadDst, 'wb') as f_out:
+                shutil.copyfileobj(f_in, f_out)
         print('')
 
     print ("=== ls %s ===" % runDir)
@@ -696,7 +698,8 @@ if fileToSave:
         print('skip since {0} is missing'.format(fileToSaveSrc))
     else:
         print('{0} -> {1} on {2}'.format(fileToSaveSrc, fileToSaveDst, sourceURL))
-        shutil.copy(fileToSaveSrc, fileToSaveDst)
+        with open(fileToSaveSrc, 'rb') as f_in, gzip.open(fileToSaveDst, 'wb') as f_out:
+            shutil.copyfileobj(f_in, f_out)
         if 'X509_USER_PROXY' in os.environ:
             certfile = os.environ['X509_USER_PROXY']
         else:
