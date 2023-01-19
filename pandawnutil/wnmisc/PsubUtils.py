@@ -113,6 +113,9 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
     datasets = ''
     filesStr = []
     for tmpRunNum in runLumiMap.keys():
+        if tmpRunNum not in runDsMap:
+            errStr = 'cannot find dataset for run number {0}'.format(tmpRunNum)
+            raise RuntimeError(errStr)
         for dsName in runDsMap[tmpRunNum]:
             # get files in the dataset
             tmpFilesStr = []

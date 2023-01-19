@@ -349,6 +349,7 @@ if not postprocess:
     setupEnv += "export TestArea=%s; " % workDir
 
 # use tracer only for single-step execution
+rTracer = None
 if not preprocess and not postprocess and 'unset LD_PRELOAD' not in jobParams:
     # Tracer On
     try:
@@ -793,7 +794,7 @@ if pfcSt != 0:
 commands_get_status_output('mv %s %s' % (pfcName,currentDir))
 
 # copy tracer log
-if not postprocess:
+if not postprocess and rTracer:
     commands_get_status_output('mv %s %s' % (rTracer.getLogName(),currentDir))
 
 # copy useful files

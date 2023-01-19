@@ -163,7 +163,7 @@ int connect(int socket, const struct sockaddr *serv_addr, socklen_t addrlen)
 	}
     }
   typedef int (*FP_orig)(int,const struct sockaddr *,socklen_t); 
-  FP_orig org_call = dlsym(((void *) -1l), "connect"); 
+  FP_orig org_call = dlsym(RTLD_NEXT, "connect");
   return org_call(socket,serv_addr,addrlen); 
 } 
 
@@ -254,7 +254,7 @@ int execve(const char *filename, char *const argv[],
 	}
     }
   typedef int (*FP_orig)(const char *,char *const [], char *const []);
-  FP_orig org_call = dlsym(((void *) -1l),"execve"); 
+  FP_orig org_call = dlsym(RTLD_NEXT,"execve");
   ret = org_call(filename,argv,envp); 
   return ret;
 }
