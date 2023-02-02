@@ -758,7 +758,10 @@ if __name__ == "__main__":
                     else:
                         # make symlinks to input files
                         if inputFile in currentDirFiles:
-                            os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
+                            if preprocess:
+                                os.symlink(os.path.relpath(os.path.join(currentDir, inputFile), os.getcwd()), inputFile)
+                            else:
+                                os.symlink('%s/%s' % (currentDir,inputFile),inputFile)
                             newInputs.append(inputFile)
                             foundFlag = True
                             inputFileMap[inputFile] = inputFile
