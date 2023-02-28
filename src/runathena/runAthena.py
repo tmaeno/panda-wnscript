@@ -754,18 +754,6 @@ if not postprocess:
         except Exception:
             if mcData == '' and not (runTrf and not runAra):
                 print ("ERROR : cannot open PoolFileCatalog.xml")
-        # remove corrupted files
-        print ("=== corruption check ===")
-        # doesn't check BS/nonRoot files since they don't invoke insert_PFC
-        if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
-            tmpFiles = tuple(inputFiles)
-            for tmpF in tmpFiles:
-                if re.search(tmpF,pLines) == None:
-                    inputFiles.remove(tmpF)
-                    print ("%s is corrupted or non-ROOT file" % tmpF)
-            if notSkipMissing and len(inputFiles) != len(tmpFiles):
-                print ("Some input files are missing")
-                sys.exit(EC_MissingInput)
         if origNumInputFiles > 0 and len(inputFiles) == 0:
             print ("No input file is available after corruption check")
             sys.exit(EC_NoInput)
