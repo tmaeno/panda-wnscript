@@ -720,7 +720,9 @@ if fileToSave:
 # rename output files
 for oldName in outputFiles:
     newName = outputFiles[oldName]
-    if oldName.find('*') != -1:
+    if oldName.startswith('regex|'):
+        continue
+    elif oldName.find('*') != -1:
         # archive *
         print (commands_get_status_output('tar cvfz %s %s' % (newName,oldName))[-1])
     else:
@@ -772,8 +774,19 @@ except Exception:
     pass
 
 # copy results
-for file in outputFiles.values():
-    commands_get_status_output('mv %s %s' % (file,currentDir))
+local_files = os.listdir('.')
+for file_name in outputFiles.values():
+    if file_name.startswith('regex|'):
+        # look for file with regex
+        target = re.sub(r'^[^|]+\|', '', file_name)
+        file_name = None
+        for local_file in local_files:
+            if re.search(target, local_file):
+                file_name = local_file
+                break
+        if not file_name:
+            continue
+    commands_get_status_output('mv %s %s' % (file_name, currentDir))
 
 
 # create empty PoolFileCatalog.xml if it doesn't exist
