@@ -1,9 +1,11 @@
 import os
+import re
 import json
 import time
 import zlib
 import datetime
 import shutil
+import shlex
 try:
     from urllib.request import urlopen, Request
     from urllib.error import HTTPError
@@ -491,3 +493,31 @@ class CheckPointUploader:
             if self.verbose:
                 self.tmpLog.debug('go to sleep for {0} min'.format(self.check_interval))
             time.sleep(self.check_interval * 60)
+
+
+# tweak job options
+def tweak_job_options(main_opts, pre_opts, post_opts):
+    # join main and tail
+    if ' - ' in main_opts:
+        # insert post opts before the delimiter
+        opts = re.sub(' - ', ' %s - ' % post_opts, main_opts)
+    elif ' -- ' in main_opts:
+        # insert post opts before the right delimiter
+        opts = re.sub(' -- ', ' %s -- ' % post_opts, main_opts)
+    else:
+        # simple concatenation
+        opts = '%s %s' % (main_opts, post_opts)
+    # add head
+    opts_items = shlex.split(opts)
+    if '-c' not in opts_items:
+        opts = '%s %s' % (pre_opts, opts)
+    else:
+        # insert pre opts after -c blah
+        i = opts_items.index('-c')
+        opts_items.insert(i+2, pre_opts)
+        try:
+            opts = " ".join(shlex.quote(s) for s in opts_items)
+        except Exception:
+            import pipes
+            opts = " ".join(pipes.quote(s) for s in opts_items)
+    return opts

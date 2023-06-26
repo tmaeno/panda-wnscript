@@ -75,7 +75,7 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options
 
 print ("=== start ===")
 print(datetime.datetime.utcnow())
@@ -1402,11 +1402,7 @@ theApp.initialize = fakeTheAppinitialize
             com += '-s '
         if useAthenaMT:
             com += thrStr
-        if ' - ' in jobO:
-            tmpJobO = re.sub(' - ', ' %s - ' % postOpt, jobO)
-            com += '%s %s' % (preOpt, tmpJobO)
-        else:
-            com += '%s %s %s' % (preOpt,jobO,postOpt)
+        com += tweak_job_options(jobO, preOpt, postOpt)
     elif dbrFile != '' and not noExpandDBR:
         # run setup.py and athena.py in a python
         tmpTrfName = 'trf.%s.py' % str(uuid.uuid4())
@@ -1422,11 +1418,7 @@ theApp.initialize = fakeTheAppinitialize
                 tmpTrfFile.write('-s ')
             if useAthenaMT:
                 tmpTrfFile.write(thrStr)
-            if ' - ' in jobO:
-                tmpJobO = re.sub(' - ', ' %s - ' % postOpt, jobO)
-                tmpTrfFile.write('%s %s""")\n' % (preOpt, tmpJobO))
-            else:
-                tmpTrfFile.write('%s %s %s""")\n' % (preOpt,jobO,postOpt))
+            tmpTrfFile.write('%s""")\n' % tweak_job_options(jobO, preOpt, postOpt))
         else:
             tmpTrfFile.write("""if 'DBRELEASE' in os.environ:
     os.environ['DBRELEASE_REQUESTED'] = os.environ['DBRELEASE']\n""")
