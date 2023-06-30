@@ -777,16 +777,16 @@ except Exception:
 local_files = os.listdir('.')
 for file_name in outputFiles.values():
     if file_name.startswith('regex|'):
+        file_name_list = []
         # look for file with regex
         target = re.sub(r'^[^|]+\|', '', file_name)
-        file_name = None
         for local_file in local_files:
             if re.search(target, local_file):
-                file_name = local_file
-                break
-        if not file_name:
-            continue
-    commands_get_status_output('mv %s %s' % (file_name, currentDir))
+                file_name_list.append(local_file)
+    else:
+        file_name_list = [file_name]
+    for tmp_name in file_name_list:
+        commands_get_status_output('mv %s %s' % (tmp_name, currentDir))
 
 
 # create empty PoolFileCatalog.xml if it doesn't exist
