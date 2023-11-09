@@ -374,8 +374,17 @@ if not postprocess:
     if os.path.exists(secrets_path):
         # parse secrets
         try:
-            with open(secrets_path) as f:
-                secrets_data = json.load(f)
+            try:
+                with open(secrets_path) as f:
+                    secrets_data = json.load(f)
+            except Exception as e:
+                print("\nWARNING: json.load secrets failed with {0}\n".format(str(e)))
+                try:
+                    with open(secrets_path) as f:
+                        secrets_data = ast.literal_eval(f.read())
+                except Exception as e:
+                    print("\nWARNING: ast.literal_eval secrets failed with {0}\n".format(str(e)))
+                    raise Exception('parsing failures')
             if secrets_data:
                 secrets_source = os.path.join(runDir, 'panda_secrets.sh')
                 set_secret_env = False
@@ -396,7 +405,7 @@ if not postprocess:
                 if not set_secret_env:
                     secrets_source = None
         except Exception as e:
-            print("\nfailed to parse secrets with {0}\n".format(str(e)))
+            print("\nERROR: failed to parse secrets with {0}\n".format(str(e)))
         os.rename(secrets_path, os.path.join(runDir, secrets_name))
     # customize .rootrc in the current dir and HOME
     rootRcDirs = [runDir]
