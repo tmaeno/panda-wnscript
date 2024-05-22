@@ -524,7 +524,7 @@ def tweak_job_options(main_opts, pre_opts, post_opts):
 
 
 # create payload error report
-def create_payload_error_report(error_type: str, error_message: str, base_dir: str):
+def create_payload_error_report(error_type, error_message, base_dir):
     """ Create a payload error report.
     :param error_type: the error code
     :param error_message: the error message
