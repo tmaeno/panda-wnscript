@@ -19,7 +19,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error
+    propagate_missing_sandbox_error, create_payload_error_report
 from pandawnutil.root import root_utils
 
 # error code
@@ -735,6 +735,10 @@ for oldName in outputFiles:
         # archive *
         print (commands_get_status_output('tar cvfz %s %s' % (newName,oldName))[-1])
     else:
+        if not os.path.exists(oldName):
+            err_msg = "expected output {0} is missing".format(oldName)
+            create_payload_error_report("missing_output", err_msg, currentDir)
+            print(err_msg)
         if oldName != newName:
             print (commands_get_status_output('mv %s %s' % (oldName,newName))[-1])
     # modify PoolFC.xml
@@ -838,6 +842,8 @@ if not debugFlag:
 print ("\n==== Result ====")
 print(datetime.datetime.utcnow())
 if status:
+    err_msg = "payload execution failed with {0}".format(status)
+    create_payload_error_report("payload_failed", err_msg, currentDir)
     print ("execute script: Running script failed : StatusCode=%d" % status)
     sys.exit(status)
 else:

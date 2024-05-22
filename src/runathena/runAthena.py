@@ -75,7 +75,7 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, create_payload_error_report
 
 print ("=== start ===")
 print(datetime.datetime.utcnow())
@@ -1493,6 +1493,10 @@ if 'IROOT' in outputFiles:
             commands_get_status_output('tar cvfz %s %s' % (iROOT[-1],iROOT[0]))
         else:
             src_name, dst_name = iROOT
+            if not os.path.exists(src_name):
+                err_msg = "expected output {0} is missing".format(src_name)
+                create_payload_error_report("missing_output", err_msg, currentDir)
+                print(err_msg)
             if src_name == dst_name:
                 continue
             # rename 
@@ -1586,6 +1590,8 @@ print ('')
 print ("=== result ===")
 print(datetime.datetime.utcnow())
 if status:
+    err_msg = "athena execution failed with {0}".format(status)
+    create_payload_error_report("athena_failed", err_msg, currentDir)
     print ("execute script: Running athena failed : %d" % status)
     sys.exit(EC_AthenaFail)
 else:
