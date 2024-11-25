@@ -58,13 +58,14 @@ debugFlag = False
 sourceURL = 'https://gridui01.usatlas.bnl.gov:25443'
 noCompile = False
 useCMake = False
+no_tarball_download = False
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:u:",
                            ["pilotpars","debug","oldPrefix=","newPrefix=",
                             "directIn","sourceURL=","lfcHost=","envvarFile=",
                             "useFileStager","accessmode=","copytool=",
-                            "noCompile","useCMake"])
+                            "noCompile","useCMake", "noTarballDownload"])
 for o, a in opts:
     if o == "-i":
         sources = a
@@ -78,15 +79,18 @@ for o, a in opts:
         noCompile = True
     if o == "--useCMake":
         useCMake = True
+    if o == "--noTarballDownload":
+        no_tarball_download = True
 
 # dump parameter
 try:
-    print ("sources", sources)
-    print ("libraries", libraries)
-    print ("debugFlag", debugFlag)
-    print ("sourceURL", sourceURL)
-    print ("noCompile", noCompile)
-    print ("useCMake", useCMake)
+    print("sources", sources)
+    print("libraries", libraries)
+    print("debugFlag", debugFlag)
+    print("sourceURL", sourceURL)
+    print("noCompile", noCompile)
+    print("useCMake", useCMake)
+    print("noTarballDownload", no_tarball_download)
 except:
     sys.exit(EC_MissingArg)
 
@@ -96,12 +100,14 @@ currentDir = record_exec_directory()
 
 print (time.ctime())
 
-url = '%s/cache/%s' % (sourceURL, sources)
-tmpStat, tmpOut = get_file_via_http(full_url=url)
-if not tmpStat:
-    print ("ERROR : " + tmpOut)
-    propagate_missing_sandbox_error()
-    sys.exit(EC_NoTarball)
+if not no_tarball_download:
+    # download sources
+    url = '%s/cache/%s' % (sourceURL, sources)
+    tmpStat, tmpOut = get_file_via_http(full_url=url)
+    if not tmpStat:
+        print ("ERROR : " + tmpOut)
+        propagate_missing_sandbox_error()
+        sys.exit(EC_NoTarball)
 
 # goto work dir
 workDir = currentDir + '/workDir'
