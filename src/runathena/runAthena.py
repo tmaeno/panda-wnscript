@@ -1427,6 +1427,9 @@ theApp.initialize = fakeTheAppinitialize
         tmpTrfFile.close()
         com += 'echo;echo ==== TRF BEGIN ====;cat %s;echo ===== TRF END ====;echo;python -u %s' % (tmpTrfName,tmpTrfName)
     else:
+        # replace core counts
+        jobO = re.sub("%PROC_NUMBER", str(os.environ.get("ATHENA_PROC_NUMBER", 1)), jobO)
+        jobO = re.sub("%CORE_NUMBER", str(os.environ.get("ATHENA_CORE_NUMBER", 1)), jobO)
         # run transformation
         com += '%s' % jobO
 
