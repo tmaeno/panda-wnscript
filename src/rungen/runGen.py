@@ -593,6 +593,10 @@ if not postprocess:
                     print ("%s to %s : %s" % (tmpKeyName,writeInputToTxtMap[tmpKeyName],inStr))
         if writeInputToTxtMap != {}:
             print ('')
+    # replace core counts
+    newJobParams = re.sub("%CORE_NUMBER", str(os.environ.get("ATHENA_CORE_NUMBER", 1)), newJobParams)
+    newJobParams = re.sub("%PROC_NUMBER", str(os.environ.get("ATHENA_PROC_NUMBER", 1)), newJobParams)
+    # replace output filenames
     if execWithRealFileNames:
         newOutputFiles = {}
         # use real output filenames
