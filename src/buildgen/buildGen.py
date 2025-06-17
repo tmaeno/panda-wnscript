@@ -19,12 +19,15 @@ except ImportError:
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
 from pandawnutil.root import root_utils
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 # error code
-EC_MissingArg  = 10
-EC_CMTFailed   = 20
-EC_NoTarball   = 30
-EC_NoROOT      = 40
+EC = ErrorCodes('buildGen')
+EC_MissingArg  = EC.MISSING_ARGUMENT
+EC_CMTFailed   = EC.CMT_FAILURE
+EC_NoTarball   = EC.FAILED_TO_GET_TARBALL
+EC_BadTarball  = EC.CORRUPTED_TARBALL
+EC_NoROOT      = EC.NO_ROOT
 
 print ("--- start ---")
 print (time.ctime())
@@ -102,7 +105,7 @@ try:
     print ("useCMake",useCMake)
     print("noTarballDownload", no_tarball_download)
 except:
-    sys.exit(EC_MissingArg)
+    EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
 # save current dir
 currentDir = record_exec_directory()
@@ -157,7 +160,7 @@ else:
         if not tmpStat:
             print ("ERROR : " + tmpOut)
             propagate_missing_sandbox_error()
-            sys.exit(EC_NoTarball)
+            EC_NoTarball.exit("Failed to download tarball from %s" % url)
     
 # goto work dir
 workDir = currentDir + '/workDir'
@@ -181,7 +184,7 @@ if not useAthenaPackages or noCompile:
         print ("ERROR : check with tar tvfz gave non-zero return code")
         print ("ERROR : {0} is corrupted".format(sources))
         propagate_missing_sandbox_error()
-        sys.exit(EC_NoTarball)
+        EC_BadTarball.exit("tarball %s is corrupted" % sources)
 
 # create cmt dir to setup Athena
 setupEnv = ''
@@ -207,7 +210,7 @@ if rootVer != '':
     tmpRootStat %= 255
     if tmpRootStat != 0:
         print ("ERROR : ROOT %s is unavailable on CVMFS" % rootCVMFS)
-        sys.exit(EC_NoROOT)
+        EC_NoROOT.exit("Failed to setup ROOT %s" % rootCVMFS)
     setupEnv += tmpSetupEnvStr
     # keep setup str for runGen
     rootBinDir = os.path.join(workDir, 'pandaRootBin')

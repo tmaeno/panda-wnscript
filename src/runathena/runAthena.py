@@ -75,23 +75,24 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, create_payload_error_report
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 print ("=== start ===")
 print(datetime.datetime.utcnow())
 print("")
 
 # error code
-EC_PoolCatalog  = 20
-EC_MissingArg   = 30
-EC_AthenaFail   = 40
-EC_NoInput      = 141
-EC_MissingInput = 142
-EC_Tarball      = 143
-EC_DBRelease    = 144
-EC_Coll         = 145
-EC_WGET         = 146
-EC_LFC          = 147
+EC = ErrorCodes('runAthena')
+EC_PoolCatalog  = EC.BAD_POLL_FILE_CATALOG
+EC_MissingArg   = EC.MISSING_ARGUMENT
+EC_AthenaFail   = EC.ATHENA_FAILURE
+EC_NoInput      = EC.ALL_INPUT_UNAVAILABLE
+EC_MissingInput = EC.SOME_INPUT_UNAVAILABLE
+EC_Tarball      = EC.CORRUPTED_TARBALL
+EC_DBRelease    = EC.DB_RELEASE_FAILURE
+EC_WGET         = EC.FAILED_TO_GET_TARBALL
+EC_MissingOutput = EC.OUTPUT_MISSING
 
 # command-line parameters
 eventColl  = False
@@ -342,7 +343,7 @@ try:
     print ("postprocess", postprocess)
     print ("===================")
 except Exception:
-    sys.exit(EC_MissingArg)
+    EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
 origNumInputFiles = len(inputFiles)
 
@@ -477,10 +478,10 @@ if not postprocess:
                 inputFiles.append(directPFNs[findName])
         if len(inputFiles) == 0:
             print ("No input file is available")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         if notSkipMissing and len(inputFiles) != len(tmpFiles):
             print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
+            EC_MissingInput.exit()
 
 
     if len(minbiasFiles) > 0:
@@ -504,10 +505,10 @@ if not postprocess:
                 minbiasFiles.append(directPFNs[findName])
         if len(minbiasFiles) == 0:
             print ("No input file is available for Minimum-bias")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         if notSkipMissing and len(minbiasFiles) != len(tmpFiles):
             print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
+            EC_MissingInput.exit()
 
 
     if len(cavernFiles) > 0:
@@ -531,10 +532,10 @@ if not postprocess:
                 cavernFiles.append(directPFNs[findName])
         if len(cavernFiles) == 0:
             print ("No input file is available for Cavern")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         if notSkipMissing and len(cavernFiles) != len(tmpFiles):
             print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
+            EC_MissingInput.exit()
 
 
     if len(beamHaloFiles) > 0:
@@ -558,10 +559,10 @@ if not postprocess:
                 beamHaloFiles.append(directPFNs[findName])
         if len(beamHaloFiles) == 0:
             print ("No input file is available for BeamHalo")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         if notSkipMissing and len(beamHaloFiles) != len(tmpFiles):
             print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
+            EC_MissingInput.exit()
 
 
     if len(beamGasFiles) > 0:
@@ -585,10 +586,10 @@ if not postprocess:
                 beamGasFiles.append(directPFNs[findName])
         if len(beamGasFiles) == 0:
             print ("No input file is available for BeamGas")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         if notSkipMissing and len(beamGasFiles) != len(tmpFiles):
             print ("Some input files are missing")
-            sys.exit(EC_MissingInput)
+            EC_MissingInput.exit()
 
 
     print ("=== New inputFiles ===")
@@ -626,8 +627,7 @@ if not postprocess:
         tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s/%s' % (currentDir,libraries))
         print (tmpOut)
     if tmpStat != 0:
-        print ("ERROR : {0} is corrupted".format(libraries))
-        sys.exit(EC_Tarball)
+        EC_Tarball.exit("tarball %s is corrupted" % libraries)
 
     # get and expand jobOs if needed
     if archiveJobO != "":
@@ -636,14 +636,12 @@ if not postprocess:
         url = '%s/cache/%s' % (sourceURL, archiveJobO)
         tmpStat, tmpOut = get_file_via_http(full_url=url)
         if not tmpStat:
-            print ("ERROR : " + tmpOut)
             propagate_missing_sandbox_error()
-            sys.exit(EC_WGET)
+            EC_WGET.exit(tmpOut)
         tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
         print (tmpOut)
         if tmpStat != 0:
-            print ("ERROR : {0} is corrupted".format(archiveJobO))
-            sys.exit(EC_Tarball)
+            EC_Tarball.exit("tarball %s is corrupted" % archiveJobO)
 
 
     # make rundir just in case
@@ -756,7 +754,7 @@ if not postprocess:
                 print ("ERROR : cannot open PoolFileCatalog.xml")
         if origNumInputFiles > 0 and len(inputFiles) == 0:
             print ("No input file is available after corruption check")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
 
     # for user specified files
     if addPoolFC != []:
@@ -790,7 +788,7 @@ if not postprocess:
         print (output)
         if status != 0:
             print ("ERROR : MC data corrupted")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         # look for .dat
         foundMcData = False
         for line in output.split('\n'):
@@ -800,12 +798,12 @@ if not postprocess:
                 if status != 0:
                     print (output)
                     print ("ERROR : failed to create symlink for MC data")
-                    sys.exit(EC_NoInput)
+                    EC_NoInput.exit()
                 foundMcData = True
                 break
         if not foundMcData:
             print ("ERROR : cannot find *.dat in %s" % inputFiles[0])
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
 
     # setup DB/CDRelease
     if dbrFile != '':
@@ -840,7 +838,7 @@ if not postprocess:
             # check
             if tmpSetupDir == None:
                 print ("ERROR : cound not find setup.py in %s" % dbrFile)
-                sys.exit(EC_DBRelease)
+                EC_DBRelease.exit()
             # run setup.py
             dbrSetupStr  = "import os\nos.chdir('%s')\nexec(open('setup.py').read())\nprint ('DBR setup finished')\nos.chdir('%s')\n" % \
                            (tmpSetupDir,os.getcwd())
@@ -1498,8 +1496,7 @@ if 'IROOT' in outputFiles:
             src_name, dst_name = iROOT
             if not os.path.exists(src_name):
                 err_msg = "expected output {0} is missing".format(src_name)
-                create_payload_error_report("missing_output", err_msg, currentDir)
-                print(err_msg)
+                EC_MissingOutput.exit(err_msg)
             if src_name == dst_name:
                 continue
             # rename 
@@ -1594,9 +1591,8 @@ print ("=== result ===")
 print(datetime.datetime.utcnow())
 if status:
     err_msg = "athena execution failed with {0}".format(status)
-    create_payload_error_report("athena_failed", err_msg, currentDir)
     print ("execute script: Running athena failed : %d" % status)
-    sys.exit(EC_AthenaFail)
+    EC_AthenaFail.exit(err_msg)
 else:
     print ("execute script: Running athena was successful")
     sys.exit(0)
