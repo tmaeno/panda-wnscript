@@ -521,25 +521,3 @@ def tweak_job_options(main_opts, pre_opts, post_opts):
             import pipes
             opts = " ".join(pipes.quote(s) for s in opts_items)
     return opts
-
-
-# create payload error report
-def create_payload_error_report(error_type, error_message, base_dir):
-    """ Create a payload error report.
-    :param error_type: the error code
-    :param error_message: the error message
-    :param base_dir: the base directory where the report is placed
-    """
-    error_map = {
-        "missing_output": 2000,
-        "athena_failed": 2001,
-        "payload_failed": 2002,
-        }
-    if error_type not in error_map:
-        return
-    # create error report
-    error_report = dict()
-    error_report['error_code'] = error_map[error_type]
-    error_report['error_diag'] = error_message
-    with open(os.path.join(base_dir, 'payload_error_report.json'), 'w') as f:
-        json.dump(error_report, f)

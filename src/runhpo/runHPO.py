@@ -19,17 +19,18 @@ except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory, \
     get_hpo_sample, update_hpo_sample, update_events, CheckPointUploader, parse_harvester_events_json
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 # error code
-EC_MissingArg  = 10
-EC_NoInput     = 11
-EC_Tarball     = 143
-EC_WGET        = 146
-EC_EVENT       = 147
-EC_EXE_FAILED  = 150
-EC_NOEVENT     = 160
-EC_NOMOREEVENT = 161
-EC_MAXLOOP     = 162
+EC = ErrorCodes('runHPO')
+EC_MissingArg  = EC.MISSING_ARGUMENT
+EC_NoInput     = EC.ALL_INPUT_UNAVAILABLE
+EC_Tarball     = EC.CORRUPTED_TARBALL
+EC_WGET        = EC.FAILED_TO_GET_TARBALL
+EC_EVENT       = EC.FAILED_TO_GET_EVENT
+EC_EXE_FAILED  = EC.HPO_EXECUTION_FAILURE
+EC_NOEVENT     = EC.NO_MORE_EVENTS
+EC_MAXLOOP     = EC.MAX_LOOP_COUNT_EXCEEDED
 
 print ("=== start ===")
 print (time.ctime())
@@ -201,7 +202,7 @@ try:
     print("===================\n")
 except Exception as e:
     print('ERROR : missing parameters : %s' % str(e))
-    sys.exit(EC_MissingArg)
+    EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
 # save current dir
 currentDir = record_exec_directory()
@@ -237,7 +238,7 @@ if not postprocess and not coprocess:
     if maxLoopCount and iterationCount:
         if maxLoopCount <= int(iterationCount):
             print("INFO : exit since loop count PILOT_EXEC_ITERATION_COUNT={} reached the limit".format(iterationCount))
-            sys.exit(EC_MAXLOOP)
+            EC_MAXLOOP.exit()
     # create work dir
     commands_get_status_output('rm -rf %s' % workDir)
     os.makedirs(workDir)
@@ -296,7 +297,7 @@ if not postprocess and not coprocess:
         print (tmpOut)
     if tmpStat != 0:
         print ("ERROR : {0} is corrupted".format(libraries))
-        sys.exit(EC_Tarball)
+        EC_Tarball.exit("tarball %s is corrupted" % libraries)
 
     # expand jobOs if needed
     if archiveJobO != "" and libraries == '':
@@ -304,12 +305,12 @@ if not postprocess and not coprocess:
         tmpStat, tmpOut = get_file_via_http(full_url=url)
         if not tmpStat:
             print ("ERROR : " + tmpOut)
-            sys.exit(EC_WGET)
+            EC_WGET.exit("failed to download tarball from %s" % url)
         tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
         print (tmpOut)
         if tmpStat != 0:
             print ("ERROR : {0} is corrupted".format(archiveJobO))
-            sys.exit(EC_Tarball)
+            EC_Tarball.exit("tarball %s is corrupted" % archiveJobO)
 
 # make run dir just in case
 commands_get_status_output('mkdir %s' % runDir)
@@ -353,7 +354,7 @@ if not postprocess and not coprocess:
         inputFiles = newInputs
         if len(inputFiles) == 0:
             print ("ERROR : No input file is available")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         print ("=== New inputFiles ===")
         print (inputFiles)
 
@@ -438,7 +439,7 @@ if not postprocess and not coprocess:
             tmpStat, tmpOut = parse_harvester_events_json(pandaID, 'JobsEventRanges.json', eventFileName)
         if not tmpStat:
             print ("ERROR : " + tmpOut)
-            sys.exit(EC_WGET)
+            EC_EVENT.exit()
         with open(eventFileName) as f:
             print(f.read())
         print ('')
@@ -484,16 +485,15 @@ if not postprocess and not coprocess:
             print ("ERROR: failed to get a HP sample from iDDS. {0}".format(str(e)))
         except Exception as e:
             print ("ERROR: failed to get an event from PanDA. {0}".format(str(e)))
-            sys.exit(EC_EVENT)
+            EC_EVENT.exit()
     # no event
     if not os.path.exists(sampleFileName):
         print ("\n==== Result ====")
         if iterationCount is None or int(iterationCount) == 0:
             print ("INFO : exit due to no event available")
-            sys.exit(EC_NOEVENT)
+            EC_NOEVENT.exit()
         print("INFO : exit due to no more event available")
-        sys.exit(EC_NOEVENT)
-        #sys.exit(EC_NOMOREEVENT)
+        EC_NOEVENT.exit()
 
     # get checkpoint file
     if checkPointToSave is not None:
@@ -743,7 +743,7 @@ if not debugFlag:
 print ("\n==== Result ====")
 if status:
     print ("ERROR : execute script: Running script failed : StatusCode=%d" % status)
-    sys.exit(status)
+    status.exit()
 else:
     print ("INFO : execute script: Running script was successful")
     sys.exit(0)

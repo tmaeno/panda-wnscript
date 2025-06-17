@@ -9,9 +9,6 @@ except NameError:
 # have to reset logger since DQ2 tweaks logger
 PLogger.resetLogger()
 
-EC_Failed = 255
-EC_Config = 100
-
 
 # convert GoodRunListXML to datasets
 def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunProdStep='',

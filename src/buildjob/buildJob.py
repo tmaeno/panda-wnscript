@@ -1,6 +1,7 @@
 #!/bin/bash
 
 "exec" "python" "-u" "$0" "$@"
+from src.buildgen.buildGen import EC_BadTarball
 
 """
 Build job
@@ -44,12 +45,14 @@ except ImportError:
     from urllib2 import urlopen, HTTPError
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
-
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 # error code
-EC_MissingArg  = 10
-EC_CMTFailed   = 20
-EC_NoTarball   = 30
+EC = ErrorCodes('buildJob')
+EC_MissingArg  = EC.MISSING_ARGUMENT
+EC_CMTFailed   = EC.CMT_FAILURE
+EC_NoTarball   = EC.FAILED_TO_GET_TARBALL
+EC_BadTarball  = EC.CORRUPTED_TARBALL
 
 print ("--- start ---")
 print (time.ctime())
@@ -92,7 +95,7 @@ try:
     print("useCMake", useCMake)
     print("noTarballDownload", no_tarball_download)
 except:
-    sys.exit(EC_MissingArg)
+    EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
 
 # save current dir
@@ -107,7 +110,7 @@ if not no_tarball_download:
     if not tmpStat:
         print ("ERROR : " + tmpOut)
         propagate_missing_sandbox_error()
-        sys.exit(EC_NoTarball)
+        EC_NoTarball.exit("Failed to download tarball from %s" % url)
 
 # goto work dir
 workDir = currentDir + '/workDir'
@@ -132,7 +135,7 @@ if useCMake:
         print ("ERROR : check with tar tvfz gave non-zero return code")
         print ("ERROR : {0} is corrupted".format(sources))
         propagate_missing_sandbox_error()
-        sys.exit(EC_NoTarball)
+        EC_BadTarball.exit("tarball {0} is corrupted".format(sources))
     print ("\n--- finished ---")
     print (time.ctime())
     # return
@@ -154,7 +157,7 @@ else:
 print (out)
 if tmpStat != 0:
     print ("ERROR : {0} is corrupted".format(sources))
-    sys.exit(EC_NoTarball)
+    EC_BadTarball.exit("tarball {0} is corrupted".format(sources))
 
 # check if groupArea exists
 groupFile = re.sub('^sources','groupArea',sources)
@@ -350,7 +353,7 @@ if not noCompile:
         status = os.system(com)    
     if status:
         print ("ERROR: CMT failed : %d" % status)
-        sys.exit(EC_CMTFailed)
+        EC_CMTFailed.exit("CMT failed with status %d" % status)
 
     # copy so for genConf
     print ('')

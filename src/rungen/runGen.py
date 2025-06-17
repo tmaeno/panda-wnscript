@@ -19,16 +19,19 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, create_payload_error_report
+    propagate_missing_sandbox_error
 from pandawnutil.root import root_utils
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 # error code
-EC_MissingArg  = 10
-EC_NoInput     = 11
-EC_Tarball     = 143
-EC_DBRelease   = 144
-EC_WGET        = 146
-EC_LFC         = 147
+EC = ErrorCodes('runGen')
+EC_MissingArg  = EC.MISSING_ARGUMENT
+EC_NoInput     = EC.ALL_INPUT_UNAVAILABLE
+EC_Tarball     = EC.CORRUPTED_TARBALL
+EC_DBRelease   = EC.DB_RELEASE_FAILURE
+EC_WGET        = EC.FAILED_TO_GET_TARBALL
+EC_MissingOutput = EC.OUTPUT_MISSING
+EC_PayloadFailure = EC.PAYLOAD_FAILURE
 
 print ("=== start ===")
 print(datetime.datetime.utcnow())
@@ -196,7 +199,7 @@ try:
     print ("===================")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
-    sys.exit(EC_MissingArg)
+    EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
 # save current dir
 currentDir = record_exec_directory()
@@ -286,7 +289,7 @@ if not postprocess:
         print (tmpOut)
     if tmpStat != 0:
         print ("ERROR : {0} is corrupted".format(libraries))
-        sys.exit(EC_Tarball)
+        EC_Tarball.exit("tarball {0} is corrupted".format(libraries))
 
     # expand jobOs if needed
     if archiveJobO != "" and (useAthenaPackages or libraries == ''):
@@ -297,12 +300,12 @@ if not postprocess:
         if not tmpStat:
             print ("ERROR : " + tmpOut)
             propagate_missing_sandbox_error()
-            sys.exit(EC_WGET)
+            EC_WGET.exit("Failed to download tarball from %s" % url)
         tmpStat, tmpOut = commands_get_status_output('tar xvfzm %s' % archiveJobO)
         print (tmpOut)
         if tmpStat != 0:
             print ("ERROR : {0} is corrupted".format(archiveJobO))
-            sys.exit(EC_Tarball)
+            EC_Tarball.exit("tarball {0} is corrupted".format(archiveJobO))
 
     # create cmt dir to setup Athena
     setupEnv = ''
@@ -453,7 +456,7 @@ if not postprocess:
         inputFiles = newInputs
         if len(inputFiles) == 0:
             print ("ERROR : No input file is available")
-            sys.exit(EC_NoInput)
+            EC_NoInput.exit()
         print ("=== New inputFiles ===")
         print (inputFiles)
 
@@ -495,7 +498,7 @@ if not postprocess:
             # check
             if tmpSetupDir == None:
                 print ("ERROR : could not find setup.py in %s" % dbrFile)
-                sys.exit(EC_DBRelease)
+                EC_DBRelease.exit()
             # run setup.py
             dbrSetupStr  = "import os\nos.chdir('%s')\nexecfile('setup.py',{})\nos.chdir('%s')\n" % \
                            (tmpSetupDir,os.getcwd())
@@ -741,8 +744,7 @@ for oldName in outputFiles:
     else:
         if not os.path.exists(oldName):
             err_msg = "expected output {0} is missing".format(oldName)
-            create_payload_error_report("missing_output", err_msg, currentDir)
-            print(err_msg)
+            EC_MissingOutput.exit(err_msg)
         if oldName != newName:
             print (commands_get_status_output('mv %s %s' % (oldName,newName))[-1])
     # modify PoolFC.xml
@@ -847,9 +849,8 @@ print ("\n==== Result ====")
 print(datetime.datetime.utcnow())
 if status:
     err_msg = "payload execution failed with {0}".format(status)
-    create_payload_error_report("payload_failed", err_msg, currentDir)
     print ("execute script: Running script failed : StatusCode=%d" % status)
-    sys.exit(status)
+    EC_PayloadFailure.exit(err_msg)
 else:
     print ("execute script: Running script was successful")
     sys.exit(0)

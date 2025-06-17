@@ -10,11 +10,15 @@ import traceback
 from pandawnutil.wnlogger import PLogger
 from pandawnutil.wnmisc import PsubUtils
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 # error code
-EC_MissingArg  = 10
-EC_WGET        = 146
-EC_GRL         = 147
+EC = ErrorCodes('preGoodRunList')
+
+# error code
+EC_MissingArg  = EC.MISSING_ARGUMENT
+EC_WGET        = EC.GET_GOOD_RUN_LIST
+EC_GRL         = EC.GOOD_RUN_LIST_FAILURE
 
 # set TZ
 os.environ['TZ'] = 'UTC'
@@ -71,7 +75,7 @@ tmpLog.info("getting GRL from %s" % url)
 tmpStatus, tmpOut = get_file_via_http(full_url=url)
 if not tmpStatus:
     tmpLog.error(tmpOut)
-    sys.exit(EC_WGET)
+    EC_WGET.exit("Failed to download Good Run List XML from %s" % url)
 print (commands_get_status_output('gunzip %s.gz' % options.goodRunListXML)[-1])
 
 # convert run/evt list to dataset/LFN list
@@ -84,14 +88,14 @@ try:
                                                              True)
     if not status:
         tmpLog.error("failed to convert GoodRunListXML")
-        sys.exit(EC_GRL)
+        EC_GRL.exit("failed to convert GoodRunListXML")
     if epDs == '':
         tmpLog.error("no datasets were extracted from AMI using %s" % options.goodRunListXML)
-        sys.exit(EC_GRL)
+        EC_GRL.exit("no datasets were extracted from AMI")
     status = 0
 except Exception as e:
     tmpLog.error("failed to convert GRL with %s %s" % (str(e),traceback.format_exc()))
-    sys.exit(EC_GRL)
+    EC_GRL.exit("failed to convert GoodRunListXML with %s" % str(e))
 
 print ('')
 

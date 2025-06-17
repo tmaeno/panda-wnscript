@@ -18,21 +18,24 @@ except ImportError:
 import uuid
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output
 from pandawnutil.root import root_utils
+from pandawnutil.wnmisc.error_codes import ErrorCodes
 
 ## error codes
+ERROR_CODE = ErrorCodes('runMerge')
+
 EC_OK = 0
 
 ## error codes implementing https://twiki.cern.ch/twiki/bin/viewauth/Atlas/PandaErrorCodes
-EC_MissingArg           = 126         # the argument to this script is not given properly
-EC_NoInput              = 141         # input file access problem (e.g. file is missing or unaccessible from WN)
-EC_LFC                  = EC_NoInput  # it uses only for direct I/O which is not enabled for the moment
-EC_IFILE_UNAVAILABLE    = EC_NoInput  # cannot access any of the input files
-EC_OFILE_UNAVAILABLE    = 102         # merged file (the output) is not produced
-EC_MERGE_SCRIPTNOFOUND  = 80          # merging script cannot be found on WN
-EC_MERGE_ERROR          = 85          # catch-all for non-zero code returned from the underlying merging command 
+EC_MissingArg           = ERROR_CODE.MISSING_ARGUMENT         # the argument to this script is not given properly
+EC_NoInput              = ERROR_CODE.ALL_INPUT_UNAVAILABLE         # input file access problem (e.g. file is missing or unaccessible from WN)
+EC_IFILE_UNAVAILABLE    = ERROR_CODE.SOME_INPUT_UNAVAILABLE  # cannot access any of the input files
+EC_OFILE_UNAVAILABLE    = ERROR_CODE.OUTPUT_MISSING       # merged file (the output) is not produced
+EC_MERGE_SCRIPTNOFOUND  = ERROR_CODE.EXEC_SCRIPT_NOT_FOUND          # merging script cannot be found on WN
+EC_MERGE_ERROR          = ERROR_CODE.PAYLOAD_FAILURE          # catch-all for non-zero code returned from the underlying merging command
+EC_Tarball = ERROR_CODE.FAILED_TO_GET_TARBALL
 
 ## error codes not recognized yet by Panda
-EC_ITYPE_UNSUPPORTED    = 81          # unsupported merging type
+EC_ITYPE_UNSUPPORTED    = ERROR_CODE.UNSUPPORTED_FILE_TYPE          # unsupported merging type
 
 ## supported file types for merging
 SUPP_TYPES = ['hist','ntuple','pool','user', 'log', 'text']
@@ -643,7 +646,7 @@ if __name__ == "__main__":
         print ("===================")
     except Exception as e:
         print ('ERROR: missing parameters : %s' % str(e))
-        sys.exit(EC_MissingArg)
+        EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
 
     if not postprocess:
         ## parsing PoolFileCatalog.xml produced by pilot
@@ -670,7 +673,7 @@ if __name__ == "__main__":
             tmpStat = __fetch_toolbox__('%s/cache/%s' % (sourceURL,archiveJobO))
             if not tmpStat:
                 print ('ERROR : failed to download %s' % archiveJobO)
-                sys.exit(EC_MERGE_ERROR)
+                EC_Tarball.exit("failed to download archiveJobO tarball %s" % archiveJobO)
 
     # save current dir
     currentDir = os.getcwd()
@@ -771,7 +774,7 @@ if __name__ == "__main__":
                 inputFiles = newInputs
                 if len(inputFiles) == 0:
                     print ('ERROR : No input file is available')
-                    sys.exit(EC_NoInput)
+                    EC_NoInput.exit()
                 print ("=== new inputFiles ===")
                 print (inputFiles)
             if not preprocess:
@@ -850,7 +853,7 @@ if __name__ == "__main__":
 
     if EC == EC_OK:
         print ('merge script: success')
+        sys.exit(0)
     else:
         print ('merge script: failed : StatusCode=%d' % EC)
-
-    sys.exit(EC)
+        EC.exit()
