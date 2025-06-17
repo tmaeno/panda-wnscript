@@ -138,7 +138,7 @@ def runtime_version():
     bin_path = '/cvmfs/atlas.cern.ch/repo/containers/sw/{0}/x86_64-el7/{1}/bin'.format(runtime, args.runtime_version)
 
     user_ns = check_usernamespaces()
-    print(user_ns)
+
     if user_ns > 0:
         logging.info('User namespaces is enabled. Checking if the runtime {} is in CVMFS'.format(runtime))
         if os.path.exists('{0}/{1}'.format(bin_path, runtime)):
