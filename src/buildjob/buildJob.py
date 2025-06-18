@@ -1,7 +1,6 @@
 #!/bin/bash
 
 "exec" "python" "-u" "$0" "$@"
-from src.buildgen.buildGen import EC_BadTarball
 
 """
 Build job
