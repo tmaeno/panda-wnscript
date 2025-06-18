@@ -838,6 +838,10 @@ if __name__ == "__main__":
     # copy PFC
     commands_get_status_output('mv %s %s' % (pfcName,currentDir))
 
+    # copy useful files
+    for patt in ['runargs.*', 'runwrapper.*', 'jobReport.json', 'log.*']:
+        commands_get_status_output('mv -f %s %s' % (patt, currentDir))
+
     # copy all log files from merging program
     print ("=== copy log files ===")
     __exec__("cp *.log %s" % currentDir)
