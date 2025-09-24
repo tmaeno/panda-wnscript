@@ -1494,9 +1494,6 @@ if 'IROOT' in outputFiles:
             commands_get_status_output('tar cvfz %s %s' % (iROOT[-1],iROOT[0]))
         else:
             src_name, dst_name = iROOT
-            if not os.path.exists(src_name):
-                err_msg = "expected output {0} is missing".format(src_name)
-                EC_MissingOutput.exit(err_msg)
             if src_name == dst_name:
                 continue
             # rename 
@@ -1552,12 +1549,23 @@ if 'BS' in outputFiles:
         print (commands_get_status_output('mv data_test.*%s* %s' % (uniqueTag,outputFiles['BS']))[-1])
     
 # copy results
+missing_output_msg = None
 for file in outputFiles.values():
     if not isinstance(file, basestring):
         # for AANT
         for aaT in file:
-            commands_get_status_output('mv %s %s' % (aaT[-1],currentDir))
+            tmp_file_name = aaT[-1]
+            if not os.path.exists(tmp_file_name):
+                err_msg = "expected output {0} is missing".format(tmp_file_name)
+                missing_output_msg = err_msg
+                if missing_output_msg is not None:
+                    break
+            commands_get_status_output('mv %s %s' % (tmp_file_name,currentDir))
     else:
+        if not os.path.exists(file):
+            err_msg = "expected output {0} is missing".format(file)
+            missing_output_msg = err_msg
+            break
         commands_get_status_output('mv %s %s' % (file,currentDir))
 
 # copy PoolFC.xml
@@ -1593,6 +1601,9 @@ if status:
     err_msg = "athena execution failed with {0}".format(status)
     print ("execute script: Running athena failed : %d" % status)
     EC_AthenaFail.exit(err_msg)
+elif missing_output_msg is not None:
+    print("payload execution succeeded, but some output files are missing")
+    EC_MissingOutput.exit(missing_output_msg)
 else:
     print ("execute script: Running athena was successful")
     sys.exit(0)
