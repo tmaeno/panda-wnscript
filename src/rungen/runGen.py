@@ -734,6 +734,7 @@ if fileToSave:
         print('')
 
 # rename output files
+missing_output_msg = None
 for oldName in outputFiles:
     newName = outputFiles[oldName]
     if oldName.startswith('regex|'):
@@ -744,7 +745,8 @@ for oldName in outputFiles:
     else:
         if not os.path.exists(oldName):
             err_msg = "expected output {0} is missing".format(oldName)
-            EC_MissingOutput.exit(err_msg)
+            missing_output_msg = err_msg
+            break
         if oldName != newName:
             print (commands_get_status_output('mv %s %s' % (oldName,newName))[-1])
     # modify PoolFC.xml
@@ -851,6 +853,9 @@ if status:
     err_msg = "payload execution failed with {0}".format(status)
     print ("execute script: Running script failed : StatusCode=%d" % status)
     EC_PayloadFailure.exit(err_msg)
+elif missing_output_msg is not None:
+    print("payload execution succeeded, but some output files are missing")
+    EC_MissingOutput.exit(missing_output_msg)
 else:
     print ("execute script: Running script was successful")
     sys.exit(0)
