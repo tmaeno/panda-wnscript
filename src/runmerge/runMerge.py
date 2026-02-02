@@ -19,6 +19,7 @@ import uuid
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output
 from pandawnutil.root import root_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
+from pandawnutil.build_timestamp import build_timestamp
 
 ## error codes
 ERROR_CODE = ErrorCodes('runMerge')
@@ -198,6 +199,30 @@ def __cat_file__(fpath):
             print (l)
 
         f.close()
+
+def __merge_mv__(inputFiles, outputFile, dumpFile=None):
+    '''
+    merging files with mv
+    '''
+
+    EC = 0
+
+    print ('merging with mv ...')
+
+    cmd = "mv $(readlink -f %s) %s" % (inputFiles[0], outputFile)
+
+    if dumpFile is not None:
+        dumpFile.write(cmd + '\n')
+        dumpFile.write('echo\n')
+        return EC
+
+    rc, output = __exec__(cmd, mergelog=True)
+
+    if rc != 0:
+        print ("ERROR: hmerge returns error code %d" % rc)
+        EC = EC_MERGE_ERROR
+
+    return EC
 
 def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', dumpFile=None):
     '''
@@ -404,14 +429,17 @@ def __merge_user__(inputFiles, outputFile, cmdEnvSetup, userCmd, dumpFile=None):
 
     return EC
 
-def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=None, dumpFile=None):
+def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=None, dumpFile=None, directIn=False):
     '''
     all-in-one function to run different type of merging algorithms
     '''
 
     EC = 0
 
-    if inputType in ['hist','ntuple']:
+    if len(inputFiles) == 1 and not directIn:
+        # use mv for local 1-to-1 file merging to avoid doubling disk usage
+        EC = __merge_mv__(inputFiles, outputFile, dumpFile)
+    elif inputType in ['hist','ntuple']:
         EC = __merge_root__(inputFiles, outputFile, cmdEnvSetup, dumpFile)
 
     elif inputType in ['pool']:
@@ -466,6 +494,9 @@ if __name__ == "__main__":
     '''
     Main program starts from here
     '''
+
+    print("==========================")
+    print("Start runMerge.py with build timestamp: %s" % build_timestamp)
 
     ## default values copied from runGen
     debugFlag    = False
@@ -783,7 +814,7 @@ if __name__ == "__main__":
                 print ("=== writing command ===")
             ## run merging
             EC = __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup=cmdEnvSetup, userCmd=mexec,
-                               dumpFile=dumpFile)
+                               dumpFile=dumpFile, directIn=directIn)
             if EC != EC_OK:
                 print ("run_merge failed with %s" % EC)
                 break

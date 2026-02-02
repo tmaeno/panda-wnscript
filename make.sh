@@ -8,11 +8,16 @@ TEMPLATEDIR=$WORKDIR/template
 
 TMPZIP=$BUILDDIR/tmp.zip
 
+BUID_TIMESTAMP=`date -u "+%F %T UTC"`
+
 # initial cleanup
 mkdir -p $DISTDIR
 mkdir -p $BUILDDIR
 rm -rf $DISTDIR/*
 rm -rf $BUILDDIR/*
+
+# make timestamp file
+echo build_timestamp="\"$BUID_TIMESTAMP\"" > pandawnutil/build_timestamp.py
 
 # loop over all target
 for TARGET in "runGen" "buildGen" "runAthena" "buildJob" "runHPO"
