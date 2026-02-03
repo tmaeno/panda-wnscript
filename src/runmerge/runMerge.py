@@ -219,7 +219,7 @@ def __merge_mv__(inputFiles, outputFile, dumpFile=None):
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
-        print ("ERROR: hmerge returns error code %d" % rc)
+        print ("ERROR: mv returns error code %d" % rc)
         EC = EC_MERGE_ERROR
 
     return EC
@@ -434,12 +434,12 @@ def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=Non
     all-in-one function to run different type of merging algorithms
     '''
 
-    EC = 0
-
     if len(inputFiles) == 1 and not directIn:
         # use mv for local 1-to-1 file merging to avoid doubling disk usage
         EC = __merge_mv__(inputFiles, outputFile, dumpFile)
-    elif inputType in ['hist','ntuple']:
+        if EC == EC_OK:
+            return EC
+    if inputType in ['hist','ntuple']:
         EC = __merge_root__(inputFiles, outputFile, cmdEnvSetup, dumpFile)
 
     elif inputType in ['pool']:
