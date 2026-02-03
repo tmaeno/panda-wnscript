@@ -202,14 +202,21 @@ def __cat_file__(fpath):
 
 def __merge_mv__(inputFiles, outputFile, dumpFile=None):
     '''
-    merging files with mv
+    merging files with mv or cp
     '''
 
     EC = 0
 
-    print ('merging with mv ...')
+    print ('merging with mv or cp ...')
 
-    cmd = "mv $(readlink -f %s) %s" % (inputFiles[0], outputFile)
+    # check if the target file is writable, if yes, use mv to avoid doubling disk usage; otherwise, use cp
+    target_file_path = os.path.realpath(inputFiles[0])
+    if os.access(target_file_path, os.W_OK):
+        cmd = "mv "
+    else:
+        cmd = "cp "
+
+    cmd += "$(readlink -f %s) %s" % (inputFiles[0], outputFile)
 
     if dumpFile is not None:
         dumpFile.write(cmd + '\n')
@@ -219,7 +226,7 @@ def __merge_mv__(inputFiles, outputFile, dumpFile=None):
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
-        print ("ERROR: mv returns error code %d" % rc)
+        print ("ERROR: mv/cp returns error code %d" % rc)
         EC = EC_MERGE_ERROR
 
     return EC
