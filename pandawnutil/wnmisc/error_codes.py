@@ -68,7 +68,7 @@ class OneError:
 
     def __str__(self):
         """String representation of the error."""
-        return "ErrorCode=%s" % self.code + self.offset
+        return "ErrorCode=%s" % (self.code + self.offset)
 
 
 class ErrorCodes:
