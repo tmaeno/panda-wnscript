@@ -238,18 +238,13 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', dumpFile=None):
 
     EC = 0
 
-    print ('merging with hmerge ...')
-
-    ftools = ['hmerge','fs_copy']
-
-    for f in ftools:
-        __exec__('cp %s/%s .; chmod +x %s' % (currentDir, f, f))
+    print ('merging with hadd ...')
 
     cmd  = cmdEnvSetup
 
     cmd += ' export PATH=.:$PATH;'
-    cmd += ' hmerge -f'
-    cmd += ' -o %s' % outputFile
+    cmd += ' hadd -f -n 5'
+    cmd += ' %s' % outputFile
     cmd += ' %s'    % ' '.join(inputFiles)
 
     if dumpFile is not None:
@@ -260,7 +255,7 @@ def __merge_root__(inputFiles, outputFile, cmdEnvSetup='', dumpFile=None):
     rc, output = __exec__(cmd, mergelog=True)
 
     if rc != 0:
-        print ("ERROR: hmerge returns error code %d" % rc)
+        print ("ERROR: hadd returns error code %d" % rc)
         EC = EC_MERGE_ERROR
 
     return EC
