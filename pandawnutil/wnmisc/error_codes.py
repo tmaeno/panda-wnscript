@@ -70,6 +70,14 @@ class OneError:
         """String representation of the error."""
         return "ErrorCode=%s" % (self.code + self.offset)
 
+    def __int__(self):
+        """Return the integer value of this error (code + offset).
+
+        This allows using OneError instances in numeric contexts, e.g.
+        '%%d' %% EC_MERGE_ERROR or int(EC_MERGE_ERROR).
+        """
+        return int(self.code + self.offset)
+
 
 class ErrorCodes:
     """Class to manage error codes for worker node scripts.
