@@ -429,7 +429,8 @@ if not postprocess:
             guidMapFromPFC[lfn] = id
             directTmpTurl[id] = pfn
     except Exception as e:
-        print ('ERROR : Failed to collect GUIDs : %s' % str(e))
+        if inputFiles:
+            print ('ERROR : Failed to collect GUIDs : %s' % str(e))
 
     print ("===== GUIDs in PFC =====")
     print (guidMapFromPFC)
