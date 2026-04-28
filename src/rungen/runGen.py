@@ -235,7 +235,8 @@ if not postprocess:
             # append
             directTmpTurl[id] = pfn
     except Exception as e:
-        print ('ERROR : Failed to collect GUIDs : %s' % str(e))
+        if inputFiles:
+            print ('ERROR : Failed to collect GUIDs : %s' % str(e))
 
 os.chdir(workDir)
 
