@@ -75,7 +75,7 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, convert_args_to_dict
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
 
@@ -148,6 +148,7 @@ useCMake = False
 useAthenaMT = False
 preprocess = False
 postprocess = False
+useArgJson = False
 
 opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                            ["pilotpars","debug","oldPrefix=","newPrefix=",
@@ -165,7 +166,7 @@ opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                             "enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
                             "noExpandDBR","useCMake","useAthenaMT",
-                            "preprocess", "postprocess"
+                            "preprocess", "postprocess", "useArgJson"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -280,6 +281,8 @@ for o, a in opts:
         preprocess = True
     if o == "--postprocess":
         postprocess = True
+    if o == "--useArgJson":
+        useArgJson = True
 
 # save current dir
 currentDir = record_exec_directory()
@@ -342,6 +345,7 @@ try:
     print ("useAthenaMT",useAthenaMT)
     print ("preprocess", preprocess)
     print ("postprocess", postprocess)
+    print ("useArgJson", useArgJson)
     print ("===================")
 except Exception:
     EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
@@ -1401,6 +1405,10 @@ theApp.initialize = fakeTheAppinitialize
             thrStr = '--threads={0} '.format(os.environ['ATHENA_PROC_NUMBER'])
         else:
             thrStr = '--threads=1 '
+    # convert arguments to dict to avoid command length limit
+    if useArgJson:
+        jobO = convert_args_to_dict(jobO)
+    # add jobO to execution string
     if (not runTrf) and dbrFile == '':
         # unset ATHENA_PROC_NUMBER for AthenaMT
         if useAthenaMT:
