@@ -521,3 +521,38 @@ def tweak_job_options(main_opts, pre_opts, post_opts):
             import pipes
             opts = " ".join(pipes.quote(s) for s in opts_items)
     return opts
+
+
+# convert args to a dict and replace them with --argjson
+def convert_args_to_dict(execution_string):
+    """convert args in an execution string to a dict, dump the dict to a JSON file, replace those args with --argjson <file>, and return a new execution string.
+    
+    Args:
+        execution_string (str): the original execution string with args to be converted. The args should be in the format of --key value.
+
+    Returns:
+        new_execution_string (str): the new execution string with args replaced by --argjson <file>.
+    """
+    args = shlex.split(execution_string)
+    args_dict = {}
+    remaining_args = []
+    i = 0
+    while i < len(args):
+        if args[i].startswith('--') and i + 1 < len(args) and not args[i + 1].startswith('-'):
+            key = args[i][2:]
+            args_dict[key] = args[i + 1]
+            i += 2
+        else:
+            remaining_args.append(args[i])
+            i += 1
+    json_file_name = 'argjson_%s.json' % uuid.uuid4().hex
+    with open(json_file_name, 'w') as f:
+        json.dump(args_dict, f)
+    try:
+        remaining_str = ' '.join(shlex.quote(s) for s in remaining_args)
+    except Exception:
+        import pipes
+        remaining_str = ' '.join(pipes.quote(s) for s in remaining_args)
+    new_execution_string = '%s --argjson %s' % (remaining_str, json_file_name)
+    print ('converted args to dict %s' % str(args_dict))
+    return new_execution_string
