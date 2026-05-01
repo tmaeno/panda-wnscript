@@ -538,10 +538,18 @@ def convert_args_to_dict(execution_string):
     remaining_args = []
     i = 0
     while i < len(args):
-        if args[i].startswith('--') and i + 1 < len(args) and not args[i + 1].startswith('-'):
-            key = args[i][2:]
-            args_dict[key] = args[i + 1]
-            i += 2
+        if args[i].startswith('--'):
+            if '=' in args[i]:
+                key, value = args[i][2:].split('=', 1)
+                args_dict[key] = value
+                i += 1
+            elif i + 1 < len(args) and not args[i + 1].startswith('-'):
+                key = args[i][2:]
+                args_dict[key] = args[i + 1]
+                i += 2
+            else:
+                remaining_args.append(args[i])
+                i += 1
         else:
             remaining_args.append(args[i])
             i += 1
