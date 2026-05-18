@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import json
 import time
 import zlib
@@ -200,15 +201,33 @@ def propagate_missing_sandbox_error():
 
 
 # replacement for commands
-def commands_get_status_output(com):
+def commands_get_status_output(com, tmp_stdout=None):
     data = ''
     try:
-        # not to use check_output for python 2.6
-        # data = subprocess.check_output(com, shell=True, universal_newlines=True, stderr=subprocess.STDOUT)
-        p = subprocess.Popen(com, shell=True, universal_newlines=True, stdout=subprocess.PIPE,
-                             stderr=subprocess.STDOUT)
-        data, unused_err = p.communicate()
-        retcode = p.poll()
+        if tmp_stdout is not None:
+            # streaming path: print each line as it arrives and tee to file
+            last_line = ''
+            with open(tmp_stdout, 'w') as f_out:
+                p = subprocess.Popen(com, shell=True, universal_newlines=True,
+                                     stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     bufsize=1)
+                for line in iter(p.stdout.readline, ''):
+                    sys.stdout.write(line)
+                    sys.stdout.flush()
+                    f_out.write(line)
+                    if line.strip():
+                        last_line = line
+                p.stdout.close()
+                p.wait()
+                retcode = p.returncode
+            data = last_line
+        else:
+            # not to use check_output for python 2.6
+            # data = subprocess.check_output(com, shell=True, universal_newlines=True, stderr=subprocess.STDOUT)
+            p = subprocess.Popen(com, shell=True, universal_newlines=True, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT)
+            data, unused_err = p.communicate()
+            retcode = p.poll()
         if retcode:
             ex = subprocess.CalledProcessError(retcode, com)
             raise ex
