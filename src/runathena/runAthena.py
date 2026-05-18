@@ -1389,7 +1389,7 @@ theApp.initialize = fakeTheAppinitialize
         com += 'cmt config;'
         com += 'source ./setup.sh;'
         com += 'export TestArea=%s;' % workDir
-        com += 'cd -;env;'
+        com += 'cd -;env;echo;echo "=== payload start ===";'
     else:
         cmakeSetupDir = 'usr/*/*/InstallArea/*'
         print("=== CMake setup ===")
@@ -1398,7 +1398,7 @@ theApp.initialize = fakeTheAppinitialize
             com += 'source {0}/setup.sh;'.format(cmakeSetupDir)
         else:
             print ('WARNING: CMake setup dir not found')
-        com += 'env;'
+        com += 'env;echo;echo "=== payload start ===";'
     thrStr = ''
     if useAthenaMT:
         if 'ATHENA_PROC_NUMBER' in os.environ:
@@ -1467,30 +1467,16 @@ if not postprocess:
     print (com)
     # run athena
     if not debugFlag:
-        # write stdout to tmp file
-        com += ' > %s 2> %s' % (tmpOutput,tmpStderr)
-        status,out = commands_get_status_output(com)
-        print (out)
-        statusChanged = False
+        status, out = commands_get_status_output(com, tmp_stdout=tmpOutput)
+        # set status=0 for AcerMC
         try:
-            tmpOutFile = open(tmpOutput)
-            for line in tmpOutFile:
-                print (line[:-1])
-                # set status=0 for AcerMC
-                if re.search('ACERMC TERMINATES NORMALY: NO MORE EVENTS IN FILE',line) != None:
-                    status = 0
-                    statusChanged = True
-            tmpOutFile.close()
+            with open(tmpOutput) as tmpOutFile:
+                for line in tmpOutFile:
+                    if re.search('ACERMC TERMINATES NORMALY: NO MORE EVENTS IN FILE', line) is not None:
+                        status = 0
+                        print ("\n\nStatusCode was overwritten for AcerMC\n")
+                        break
         except Exception:
-            pass
-        if statusChanged:
-            print ("\n\nStatusCode was overwritten for AcerMC\n")
-        try:
-            tmpErrFile = open(tmpStderr)
-            for line in tmpErrFile:
-                print (line[:-1])
-            tmpErrFile.close()
-        except:
             pass
         # print 'sh: line 1:  8278 Aborted'
         try:

@@ -672,35 +672,13 @@ if not postprocess:
 
     # temporary output to avoid MemeoryError
     tmpOutput = 'tmp.stdout.%s' % str(uuid.uuid4())
-    tmpStderr = 'tmp.stderr.%s' % str(uuid.uuid4())
 
     print ("=== execute ===")
     print (com)
     # run athena
     if not debugFlag:
-        # write stdout to tmp file
-        com += ' > %s 2> %s' % (tmpOutput,tmpStderr)
-        status,out = commands_get_status_output(com)
-        print (out)
+        status, out = commands_get_status_output(com, tmp_stdout=tmpOutput)
         status %= 255
-        try:
-            tmpOutFile = open(tmpOutput)
-            for line in tmpOutFile:
-                print (line[:-1])
-            tmpOutFile.close()
-        except:
-            pass
-        try:
-            stderrSection = True
-            tmpErrFile = open(tmpStderr)
-            for line in tmpErrFile:
-                if stderrSection:
-                    stderrSection = False
-                    print ("\n=== stderr ===")
-                print (line[:-1])
-            tmpErrFile.close()
-        except:
-            pass
         # print 'sh: line 1:  8278 Aborted'
         try:
             if status != 0:
