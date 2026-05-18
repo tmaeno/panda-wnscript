@@ -1389,7 +1389,7 @@ theApp.initialize = fakeTheAppinitialize
         com += 'cmt config;'
         com += 'source ./setup.sh;'
         com += 'export TestArea=%s;' % workDir
-        com += 'cd -;env;echo "=== payload start ===";'
+        com += 'cd -;env;echo;echo "=== payload start ===";'
     else:
         cmakeSetupDir = 'usr/*/*/InstallArea/*'
         print("=== CMake setup ===")
@@ -1398,7 +1398,7 @@ theApp.initialize = fakeTheAppinitialize
             com += 'source {0}/setup.sh;'.format(cmakeSetupDir)
         else:
             print ('WARNING: CMake setup dir not found')
-        com += 'env;echo "=== payload start ===";'
+        com += 'env;echo;echo "=== payload start ===";'
     thrStr = ''
     if useAthenaMT:
         if 'ATHENA_PROC_NUMBER' in os.environ:
