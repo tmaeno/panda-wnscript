@@ -2,6 +2,7 @@
 
 "exec" "python3" "-u" "$0" "$@"
 
+import json
 import os
 import sys
 import optparse
@@ -132,7 +133,7 @@ metaDict['reportVersion'] = '1.0.0'
 metaFileName = 'jobReport.json'
 commands_get_status_output('rm -rf %s' % metaFileName)
 mFH = open(metaFileName,'w')
-import json
+
 json.dump(metaDict,mFH)
 mFH.close()
 

@@ -37,11 +37,7 @@ import time
 import uuid
 import getopt
 import subprocess
-try:
-    from urllib.request import urlopen
-    from urllib.error import HTTPError
-except ImportError:
-    from urllib2 import urlopen, HTTPError
+
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
 from pandawnutil.wnmisc.error_codes import ErrorCodes
@@ -182,7 +178,7 @@ if os.path.exists("%s/%s" % (workDir,groupFile)):
 packages=[]
 for line in out.splitlines():
     name = line.split()[-1]
-    if name.endswith('/cmt/') and not '__panda_rootCoreWorkDir' in name:
+    if name.endswith('/cmt/') and '__panda_rootCoreWorkDir' not in name:
         # remove /cmt/
         name = re.sub('/cmt/$','',name)
         packages.append(name)
@@ -251,7 +247,7 @@ if s32 == 0 and osRelease != '' and osRelease >= '4.0':
     # when CMTCONFIG has slc3-gcc323
     if cmtConfig.find('slc3-gcc323') != -1:
         # unset alias when gcc ver is unknown or already has 3.2.3
-        if not gccVer in ['','3.2.3']:
+        if gccVer not in ['','3.2.3']:
             # 64bit or not
             if processor == 'x86_64':
                 gccAlias = 'echo "%s -m32 \$*" > g++;' % o32

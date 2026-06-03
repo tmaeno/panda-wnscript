@@ -274,7 +274,7 @@ if not postprocess and not coprocess:
     for tmpToken in inMap:
         tmpList = inMap[tmpToken]
         for inputFile in tmpList:
-            if not inputFile in inputFiles:
+            if inputFile not in inputFiles:
                 inputFiles.append(inputFile)
     print ('')
     print ("===== inputFiles with inMap =====")

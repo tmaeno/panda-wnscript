@@ -61,11 +61,6 @@ try:
     import urllib.request as urllib
 except ImportError:
     import urllib
-try:
-    from urllib.request import urlopen
-    from urllib.error import HTTPError
-except ImportError:
-    from urllib2 import urlopen, HTTPError
 import xml.dom.minidom
 import uuid
 try:
@@ -377,7 +372,7 @@ if not postprocess:
     if skipInputByRetry != []:
         tmpInputList = []
         for tmpLFN in inputFiles:
-            if not tmpLFN in skipInputByRetry:
+            if tmpLFN not in skipInputByRetry:
                 tmpInputList.append(tmpLFN)
         inputFiles = tmpInputList
         print ("removed skipped files -> %s" % str(inputFiles))
@@ -714,7 +709,7 @@ if not postprocess:
             if (not directIn) and (not givenPFN):
                 targetName = fileName
                 # for rome data
-                if re.search(fileName,'\.\d+$')==None and (not fileName in curFiles):
+                if re.search(fileName,'\.\d+$') is None and (fileName not in curFiles):
                     for cFile in curFiles:
                         if re.search('^'+fileName,cFile) is not None:
                             targetName = cFile
@@ -851,7 +846,7 @@ if not postprocess:
                     tmpSetupDir = re.sub('setup.py$','',line)
                     break
             # check
-            if tmpSetupDir == None:
+            if tmpSetupDir is None:
                 print ("ERROR : cound not find setup.py in %s" % dbrFile)
                 EC_DBRelease.exit()
             # run setup.py
@@ -1006,7 +1001,7 @@ else:
         oFile.write('THistSvc = _Service ( "THistSvc" )\n')
         sNameList = []
         for aName,sName,fName in outputFiles['AANT']:
-            if not sName in sNameList:
+            if sName not in sNameList:
                 sNameList.append(sName)
                 if firstFlag:
                     firstFlag = False

@@ -246,7 +246,7 @@ if not postprocess:
     for tmpToken in inMap:
         tmpList = inMap[tmpToken]
         for inputFile in tmpList:
-            if not inputFile in inputFiles:
+            if inputFile not in inputFiles:
                 inputFiles.append(inputFile)
     # remove duplication while keeping order
     seen = set()
@@ -265,7 +265,7 @@ if not postprocess:
     if skipInputByRetry != []:
         tmpInputList = []
         for tmpLFN in inputFiles:
-            if not tmpLFN in skipInputByRetry:
+            if tmpLFN not in skipInputByRetry:
                 tmpInputList.append(tmpLFN)
         inputFiles = tmpInputList
         print ("removed skipped files -> %s"% str(inputFiles))
@@ -506,7 +506,7 @@ if not postprocess:
                     tmpSetupDir = re.sub('setup.py$','',line)
                     break
             # check
-            if tmpSetupDir == None:
+            if tmpSetupDir is None:
                 print ("ERROR : could not find setup.py in %s" % dbrFile)
                 EC_DBRelease.exit()
             # run setup.py
