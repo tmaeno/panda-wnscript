@@ -420,10 +420,10 @@ if not postprocess:
             # convert UTF8 to Raw
             pfn = str(pfnNode.getAttribute('name'))
             lfn = pfn.split('/')[-1]
-            lfn = re.sub('__DQ2-\d+$','',lfn)
+            lfn = re.sub(r'__DQ2-\d+$','',lfn)
             lfn = re.sub('^([^:]+:)','', lfn)
-            lfn = re.sub('\?GoogleAccessId.*$','', lfn)
-            lfn = re.sub('\?X-Amz-Algorithm.*$', '', lfn)
+            lfn = re.sub(r'\?GoogleAccessId.*$','', lfn)
+            lfn = re.sub(r'\?X-Amz-Algorithm.*$', '', lfn)
             # append
             guidMapFromPFC[lfn] = id
             directTmpTurl[id] = pfn
@@ -709,7 +709,7 @@ if not postprocess:
             if (not directIn) and (not givenPFN):
                 targetName = fileName
                 # for rome data
-                if re.search(fileName,'\.\d+$') is None and (fileName not in curFiles):
+                if re.search(fileName,r'\.\d+$') is None and (fileName not in curFiles):
                     for cFile in curFiles:
                         if re.search('^'+fileName,cFile) is not None:
                             targetName = cFile
@@ -722,10 +722,10 @@ if not postprocess:
             if (not byteStream) and mcData == '' and (not generalInput) and not (runTrf and not runAra):
                 # insert it to pool catalog
                 tmpLFNforPFC = fileName.split('/')[-1]
-                tmpLFNforPFC = re.sub('__DQ2-\d+$','',tmpLFNforPFC)
+                tmpLFNforPFC = re.sub(r'__DQ2-\d+$','',tmpLFNforPFC)
                 tmpLFNforPFC = re.sub('^([^:]+:)','', tmpLFNforPFC)
-                tmpLFNforPFC = re.sub('\?GoogleAccessId.*$','', tmpLFNforPFC)
-                tmpLFNforPFC = re.sub('\?X-Amz-Algorithm.*$', '', tmpLFNforPFC)
+                tmpLFNforPFC = re.sub(r'\?GoogleAccessId.*$','', tmpLFNforPFC)
+                tmpLFNforPFC = re.sub(r'\?X-Amz-Algorithm.*$', '', tmpLFNforPFC)
                 if tmpLFNforPFC in guidMapFromPFC:
                     filesToPfcMap[guidMapFromPFC[tmpLFNforPFC]] = fileName
                 elif not givenPFN:
@@ -995,7 +995,7 @@ if key in _configs:
 else:
     StreamTAG = Algorithm( key )
 """)
-        oFile.write('StreamTAG.OutputCollection = "%s"\n' % re.sub('\.root\.*\d*$','',outputFiles['TAG']))
+        oFile.write('StreamTAG.OutputCollection = "%s"\n' % re.sub(r'\.root\.*\d*$','',outputFiles['TAG']))
     if 'AANT' in outputFiles:
         firstFlag = True
         oFile.write('THistSvc = _Service ( "THistSvc" )\n')
@@ -1327,7 +1327,7 @@ theApp.initialize = fakeTheAppinitialize
         newJobO = jobO
         for tmpName in inputFiles:
             newJobO = re.sub('(?P<term> |=|\'|\"|,){0}'.format(os.path.basename(tmpName)),
-                             '\g<term>{0}'.format(tmpName), newJobO)
+                             r'\g<term>{0}'.format(tmpName), newJobO)
         print ("  Old : " + jobO)
         print ("  New : " + newJobO)
         print ("")
@@ -1374,7 +1374,7 @@ theApp.initialize = fakeTheAppinitialize
         elif 'GLOBUS_CE' in os.environ:
             tmpCE = os.environ['GLOBUS_CE'].split('/')[0]
             # remove port number
-            tmpCE = re.sub(':\d+$','',tmpCE)
+            tmpCE = re.sub(r':\d+$','',tmpCE)
             com += 'export ATLAS_CONDDB=%s;' % tmpCE
         elif 'PBS_O_HOST' in os.environ:
             com += 'export ATLAS_CONDDB=%s;' % os.environ['PBS_O_HOST']
@@ -1533,11 +1533,11 @@ if 'IROOT' in outputFiles:
 
 # rename TAG files
 if 'TAG' in outputFiles:
-    woAttrNr = re.sub('\.\d+$','',outputFiles['TAG'])
+    woAttrNr = re.sub(r'\.\d+$','',outputFiles['TAG'])
     if woAttrNr != outputFiles['TAG']:
         print (commands_get_status_output('mv %s %s' % (woAttrNr,outputFiles['TAG']))[-1])
     # since 13.0.30 StreamTAG doesn't append .root automatically
-    woRootAttrNr = re.sub('\.root\.*\d*$','',outputFiles['TAG'])
+    woRootAttrNr = re.sub(r'\.root\.*\d*$','',outputFiles['TAG'])
     if woRootAttrNr != outputFiles['TAG']:
         print (commands_get_status_output('mv %s %s' % (woRootAttrNr,outputFiles['TAG']))[-1])
 

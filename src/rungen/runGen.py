@@ -280,12 +280,12 @@ if not postprocess:
         directPFNs = {}
         for id in directTmp.keys():
             lfn = directTmp[id].split('/')[-1]
-            lfn = re.sub('__DQ2-\d+$','',lfn)
+            lfn = re.sub(r'__DQ2-\d+$','',lfn)
             lfn = re.sub('^([^:]+:)','', lfn)
-            lfn = re.sub('\?site.*$','', lfn)
-            lfn = re.sub('\?select.*$','', lfn)
-            lfn = re.sub('\?GoogleAccessId.*$','', lfn)
-            lfn = re.sub('\?X-Amz-Algorithm.*$', '', lfn)
+            lfn = re.sub(r'\?site.*$','', lfn)
+            lfn = re.sub(r'\?select.*$','', lfn)
+            lfn = re.sub(r'\?GoogleAccessId.*$','', lfn)
+            lfn = re.sub(r'\?X-Amz-Algorithm.*$', '', lfn)
             directPFNs[lfn] = directTmp[id]
 
     # expand libraries

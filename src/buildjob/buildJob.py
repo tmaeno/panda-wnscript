@@ -156,7 +156,7 @@ if tmpStat != 0:
 
 # check if groupArea exists
 groupFile = re.sub('^sources','groupArea',sources)
-groupFile = re.sub('\.gz$','',groupFile)
+groupFile = re.sub(r'\.gz$','',groupFile)
 useGroupArea = False
 if os.path.exists("%s/%s" % (workDir,groupFile)):
     useGroupArea = True
@@ -190,7 +190,7 @@ useVersionDir = False
 # append user packages
 for pak in packages:
     # version directory
-    vmat = re.search('-\d+-\d+-\d+$',pak)
+    vmat = re.search(r'-\d+-\d+-\d+$',pak)
     if vmat:
         useVersionDir = True
         mat = re.search('^(.+)/([^/]+)/([^/]+)$',pak)
@@ -214,7 +214,7 @@ oFile.close()
 print ("--- /etc/redhat-release ---")
 tmp = commands_get_status_output('cat /etc/redhat-release')[-1]
 print (tmp)
-match = re.search('(\d+\.\d+[\d\.]*)\s+\([^\)]+\)',tmp)
+match = re.search(r'(\d+\.\d+[\d\.]*)\s+\([^\)]+\)',tmp)
 osRelease = ''
 if match is not None:
     osRelease = match.group(1)
@@ -231,7 +231,7 @@ print (cmtConfig)
 print ("--- gcc ---")
 tmp = commands_get_status_output('gcc -v')[-1]
 print (tmp)
-match = re.search('gcc version (\d+\.\d+[^\s]+)',tmp.split('\n')[-1])
+match = re.search(r'gcc version (\d+\.\d+[^\s]+)',tmp.split('\n')[-1])
 gccVer = ''
 if match is not None:
     gccVer = match.group(1)
@@ -338,7 +338,7 @@ if not noCompile:
         if status == 0:
             try:
                 for line in out.split('\n')[-3:]:
-                    if line.startswith('make') and re.search('Error \d+$',line) is not None:
+                    if line.startswith('make') and re.search(r'Error \d+$',line) is not None:
                         status = 1
                         print ("ERROR: make failed. set status=%d" % status)
                         break
@@ -416,7 +416,7 @@ def reLink(dir,dirPrefix):
                     continue
                 fullPathList.append(fullPath)
                 # remove special characters from comparison string
-                sString=re.sub('[\+]','.',workDir)
+                sString=re.sub(r'[\+]','.',workDir)
                 # replace
                 relPath = re.sub('^%s/' % sString, '', fullPath)
                 if relPath != fullPath:
