@@ -484,7 +484,7 @@ def __getMergeType__(inputList,mergeScript):
     if re.search(r'pool\.root(\.\d+)*$',baseFile) is not None:
         return 'pool'
     # root
-    if re.search(r'.root(\.\d+)*$',baseFile) is not None:
+    if re.search(r'\.root(\.\d+)*$',baseFile) is not None:
         return 'ntuple'
     # others
     return 'text'
