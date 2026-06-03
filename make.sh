@@ -32,7 +32,7 @@ for TARGET in "runGen" "buildGen" "runAthena" "buildJob" "runHPO"
   cd $EXESRCDIR
   zip -o $TMPZIP -R . "*.py"
   cd $WORKDIR
-  # make self-exracting executable
+  # make self-extracting executable
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
   chmod +x $EXENAME
   echo
@@ -51,7 +51,7 @@ for TARGET in "runMerge"
   cd $EXESRCDIR
   zip -o $TMPZIP -r . -i *
   cd $WORKDIR
-  # make self-exracting executable
+  # make self-extracting executable
   cat $TEMPLATEDIR/zipheader $TMPZIP > $EXENAME
   chmod +x $EXENAME
   echo
@@ -70,7 +70,7 @@ for TARGET in "preGoodRunList"
   cd $EXESRCDIR
   zip -o $TMPZIP -r . -i *
   cd $WORKDIR
-  # make self-exracting executable
+  # make self-extracting executable
   cat $TEMPLATEDIR/zipheaderCVMFS $TMPZIP > $EXENAME
   chmod +x $EXENAME
   echo
