@@ -521,7 +521,6 @@ def rename_ouput():
                         logging.error("Cannot chdir. Error: " + format(err))
                         pass
         else:
-            output_path = ''
             for root, dirs, files in os.walk(current_dir):
                 if old_name in files:
                     output_path = os.path.join(root, old_name)
