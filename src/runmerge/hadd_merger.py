@@ -22,7 +22,6 @@ def __usage__():
 def execSyscmdSubprocess(cmd, wdir=os.getcwd()):
 
     import subprocess
-    import shlex
     import time
 
     exitcode = 0

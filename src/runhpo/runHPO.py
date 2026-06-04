@@ -262,8 +262,8 @@ if not postprocess and not coprocess:
             pfn = str(pfnNode.getAttribute('name'))
             # LFN
             lfn = pfn.split('/')[-1]
-            lfn = re.sub('\?GoogleAccessId.*$','', lfn)
-            lfn = re.sub('\?X-Amz-Algorithm.*$', '', lfn)
+            lfn = re.sub(r'\?GoogleAccessId.*$','', lfn)
+            lfn = re.sub(r'\?X-Amz-Algorithm.*$', '', lfn)
             # append
             directTmpTurl[id] = pfn
             directPFNs[lfn] = pfn
@@ -274,7 +274,7 @@ if not postprocess and not coprocess:
     for tmpToken in inMap:
         tmpList = inMap[tmpToken]
         for inputFile in tmpList:
-            if not inputFile in inputFiles:
+            if inputFile not in inputFiles:
                 inputFiles.append(inputFile)
     print ('')
     print ("===== inputFiles with inMap =====")

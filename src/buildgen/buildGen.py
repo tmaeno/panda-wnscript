@@ -11,11 +11,7 @@ try:
     import urllib.request as urllib
 except ImportError:
     import urllib
-try:
-    from urllib.request import urlopen
-    from urllib.error import HTTPError
-except ImportError:
-    from urllib2 import urlopen, HTTPError
+
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
 from pandawnutil.root import root_utils

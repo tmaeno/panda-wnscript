@@ -37,11 +37,7 @@ import time
 import uuid
 import getopt
 import subprocess
-try:
-    from urllib.request import urlopen
-    from urllib.error import HTTPError
-except ImportError:
-    from urllib2 import urlopen, HTTPError
+
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error
 from pandawnutil.wnmisc.error_codes import ErrorCodes
@@ -160,7 +156,7 @@ if tmpStat != 0:
 
 # check if groupArea exists
 groupFile = re.sub('^sources','groupArea',sources)
-groupFile = re.sub('\.gz$','',groupFile)
+groupFile = re.sub(r'\.gz$','',groupFile)
 useGroupArea = False
 if os.path.exists("%s/%s" % (workDir,groupFile)):
     useGroupArea = True
@@ -182,7 +178,7 @@ if os.path.exists("%s/%s" % (workDir,groupFile)):
 packages=[]
 for line in out.splitlines():
     name = line.split()[-1]
-    if name.endswith('/cmt/') and not '__panda_rootCoreWorkDir' in name:
+    if name.endswith('/cmt/') and '__panda_rootCoreWorkDir' not in name:
         # remove /cmt/
         name = re.sub('/cmt/$','',name)
         packages.append(name)
@@ -194,7 +190,7 @@ useVersionDir = False
 # append user packages
 for pak in packages:
     # version directory
-    vmat = re.search('-\d+-\d+-\d+$',pak)
+    vmat = re.search(r'-\d+-\d+-\d+$',pak)
     if vmat:
         useVersionDir = True
         mat = re.search('^(.+)/([^/]+)/([^/]+)$',pak)
@@ -218,7 +214,7 @@ oFile.close()
 print ("--- /etc/redhat-release ---")
 tmp = commands_get_status_output('cat /etc/redhat-release')[-1]
 print (tmp)
-match = re.search('(\d+\.\d+[\d\.]*)\s+\([^\)]+\)',tmp)
+match = re.search(r'(\d+\.\d+[\d\.]*)\s+\([^\)]+\)',tmp)
 osRelease = ''
 if match is not None:
     osRelease = match.group(1)
@@ -235,7 +231,7 @@ print (cmtConfig)
 print ("--- gcc ---")
 tmp = commands_get_status_output('gcc -v')[-1]
 print (tmp)
-match = re.search('gcc version (\d+\.\d+[^\s]+)',tmp.split('\n')[-1])
+match = re.search(r'gcc version (\d+\.\d+[^\s]+)',tmp.split('\n')[-1])
 gccVer = ''
 if match is not None:
     gccVer = match.group(1)
@@ -251,7 +247,7 @@ if s32 == 0 and osRelease != '' and osRelease >= '4.0':
     # when CMTCONFIG has slc3-gcc323
     if cmtConfig.find('slc3-gcc323') != -1:
         # unset alias when gcc ver is unknown or already has 3.2.3
-        if not gccVer in ['','3.2.3']:
+        if gccVer not in ['','3.2.3']:
             # 64bit or not
             if processor == 'x86_64':
                 gccAlias = 'echo "%s -m32 \$*" > g++;' % o32
@@ -342,7 +338,7 @@ if not noCompile:
         if status == 0:
             try:
                 for line in out.split('\n')[-3:]:
-                    if line.startswith('make') and re.search('Error \d+$',line) is not None:
+                    if line.startswith('make') and re.search(r'Error \d+$',line) is not None:
                         status = 1
                         print ("ERROR: make failed. set status=%d" % status)
                         break
@@ -420,7 +416,7 @@ def reLink(dir,dirPrefix):
                     continue
                 fullPathList.append(fullPath)
                 # remove special characters from comparison string
-                sString=re.sub('[\+]','.',workDir)
+                sString=re.sub(r'[\+]','.',workDir)
                 # replace
                 relPath = re.sub('^%s/' % sString, '', fullPath)
                 if relPath != fullPath:

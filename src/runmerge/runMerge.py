@@ -63,7 +63,7 @@ def urisplit(uri):
 
    """
    # regex straight from STD 66 section B
-   regex = '^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?'
+   regex = r'^(([^:/?#]+):)?(//([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?'
    p = re.match(regex, uri).groups()
    scheme, authority, path, query, fragment = p[1], p[3], p[4], p[6], p[8]
    #if not path: path = None
@@ -102,7 +102,6 @@ def __resolvePoolFileCatalog__(PFC='PoolFileCatalog.xml'):
             pfnNode  = physical.getElementsByTagName('pfn')[0]
             # convert UTF8 to Raw
             pfn = str(pfnNode.getAttribute('name'))
-            lfn = pfn.split('/')[-1]
             # append
             turls[id] = pfn
     except Exception as e:
@@ -287,7 +286,7 @@ def __merge_tgz__(inputFiles, outputFile, cmdEnvSetup, dumpFile=None):
         f_idx = 0
 
         ## regex for extracting panda jobsetID and subjob seqID
-        re_ext = re.compile('.*\.([0-9]+\.\_[0-9]+)\..*')
+        re_ext = re.compile(r'.*\.([0-9]+\.\_[0-9]+)\..*')
 
         for fname in inputFiles:
 
@@ -476,16 +475,16 @@ def __getMergeType__(inputList,mergeScript):
     '''
     baseFile = inputList[0]
     # log
-    if re.search('log\.tgz(\.\d+)*$',baseFile) != None:
+    if re.search(r'log\.tgz(\.\d+)*$',baseFile) is not None:
         return 'log'
     # user defined
     if mergeScript != '':
         return 'user'
     # pool
-    if re.search('pool\.root(\.\d+)*$',baseFile) != None:
+    if re.search(r'pool\.root(\.\d+)*$',baseFile) is not None:
         return 'pool'
     # root
-    if re.search('.root(\.\d+)*$',baseFile) != None:
+    if re.search(r'\.root(\.\d+)*$',baseFile) is not None:
         return 'ntuple'
     # others
     return 'text'
@@ -696,7 +695,7 @@ if __name__ == "__main__":
             # collect LFNs
             for id in directTmp.keys():
                 lfn = directTmp[id].split('/')[-1]
-                lfn = re.sub('__DQ2-\d+$','',lfn)
+                lfn = re.sub(r'__DQ2-\d+$','',lfn)
                 lfn = re.sub('^([^:]+:)','', lfn)
                 directPFNs[lfn] = directTmp[id]
             print (directPFNs)

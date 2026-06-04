@@ -80,7 +80,7 @@ def check_usernamespaces():
 
     for file in glob.iglob('/etc/sysctl.d/*.conf'):
         if not os.access(file, os.R_OK):
-            logging.warn('File {} not readable'.format(file))
+            logging.warning('File {} not readable'.format(file))
             continue
         for line in open(file, 'r'):
             if re.search('user.max_user_namespaces', line):
@@ -256,7 +256,6 @@ def singularity_container(data={}):
                  .format(data['container_type'], data['version'], data['container_options']))
     # Do we have to sandbox? Only if the image is from a docker registry
     # not if it is from /cvmfs in that case we want to use the image
-    exec_image = ''
     if re.search('docker://', args.ctr_image):
         exec_image = singularity_sandbox(data,args.ctr_image)
     else:
@@ -293,7 +292,7 @@ def singularity_container(data={}):
     # If Cvmfs add that to bind_paths
     cvmfs = '-B /cvmfs:/cvmfs' if args.ctr_cvmfs else ''
 
-    container_options = data['container_options'] if data and data['container_options'] != None else ''
+    container_options = data['container_options'] if data and data['container_options'] is not None else ''
 
     # set the singularity user proxy
     x509_cert_bind = singularity_user_proxy() if not args.ctr_x509 else ''
@@ -337,7 +336,7 @@ def execute(cmd=[]):
         if ch.returncode == None and ch.stderr:
 
             for line in iter(ch.stderr.readline,b''):
-                logging.warn(line.strip())
+                logging.warning(line.strip())
 
     if ch.returncode != 0:
         logging.error('Container execution failed with errors. Error code: {}'.format(ch.returncode))
@@ -354,7 +353,7 @@ def execute(cmd=[]):
 #
 #    if ch.returncode == 0 and len(ch_stderr) != 0:
 #        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
-#            logging.warn(line.strip())
+#            logging.warning(line.strip())
 #    elif ch.returncode != 0:
 #        logging.error('Container execution failed with errors. Error code: {}'.format(ch.returncode))
 #        for line in ch_stderr.decode(encoding='utf-8').split('\n'):
@@ -437,7 +436,6 @@ def input():
     # If the input is requested read the PFC
     if in_map:
         # PoolFileCatalog
-        directPFNs = {}
         directPFNs = read_poolfilecatalog()
         logging.info('TURLs in PFC {}'.format(directPFNs))
 
@@ -521,7 +519,6 @@ def rename_ouput():
                         logging.error("Cannot chdir. Error: " + format(err))
                         pass
         else:
-            output_path = ''
             for root, dirs, files in os.walk(current_dir):
                 if old_name in files:
                     output_path = os.path.join(root, old_name)

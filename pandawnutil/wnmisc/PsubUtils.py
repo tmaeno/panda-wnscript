@@ -87,7 +87,7 @@ def convertGoodRunListXMLtoDS(tmpLog,goodRunListXML,goodRunDataType='',goodRunPr
             else:
                 matchFlag = False
                 for tmpPatt in goodRunListDS:
-                    if re.search(tmpPatt,dsName) != None:
+                    if re.search(tmpPatt,dsName) is not None:
                         matchFlag = True
             if not matchFlag:
                 continue
