@@ -10,7 +10,6 @@ import base64
 import getopt
 import glob
 import uuid
-import datetime
 import shutil
 import gzip
 import xml.dom.minidom
@@ -19,7 +18,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error
+    propagate_missing_sandbox_error, naive_utcnow
 from pandawnutil.root import root_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
@@ -35,7 +34,7 @@ EC_MissingOutput = EC.OUTPUT_MISSING
 EC_PayloadFailure = EC.PAYLOAD_FAILURE
 
 print ("=== start with build timestamp: %s" % build_timestamp)
-print(datetime.datetime.utcnow())
+print(naive_utcnow())
 
 debugFlag    = False
 libraries    = ''
@@ -836,7 +835,7 @@ if not debugFlag:
 
 # return
 print ("\n==== Result ====")
-print(datetime.datetime.utcnow())
+print(naive_utcnow())
 if status:
     err_msg = "payload execution failed with {0}".format(status)
     print ("execute script: Running script failed : StatusCode=%d" % status)

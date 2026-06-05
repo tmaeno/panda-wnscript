@@ -29,6 +29,26 @@ ENV_HOME = 'TRF_EXEC_HOME_DIR'
 # env variable of payload input directory
 ENV_WORK_DIR = 'PAYLOAD_INPUT_DIR'
 
+def naive_utcnow():
+    """
+    Return the current UTC date and time, without tzinfo
+    """
+    try:
+        return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    except AttributeError:
+        # Python 2 — datetime.timezone does not exist
+        return datetime.datetime.utcnow()
+
+def naive_utcfromtimestamp(timestamp):
+    """
+    Return the UTC date and time, without tzinfo, corresponding to the POSIX timestamp
+    """
+    try:
+        return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).replace(tzinfo=None)
+    except AttributeError:
+        # Python 2 - datetime.timezone does not exist
+        return datetime.datetime.utcfromtimestamp(timestamp)
+
 
 # add user job metadata
 def add_user_job_metadata(userJobMetadata='userJobMetadata.json'):
@@ -319,7 +339,7 @@ def make_tarball_for_fresh_files(files_to_check, output_file, last_check_time, m
         makeTarball = False
         for path in files_to_check:
             if os.path.isfile(path):
-                mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(path))
+                mtime = naive_utcfromtimestamp(os.path.getmtime(path))
                 tmp_log.debug('{0} mtime:{1} last_check:{2}'.format(path, mtime, last_check_time))
                 # found a new file
                 if mtime >= last_check_time:
@@ -329,7 +349,7 @@ def make_tarball_for_fresh_files(files_to_check, output_file, last_check_time, m
                 for root, dirs, files in os.walk(path):
                     for name in files:
                         sub_path = os.path.join(root, name)
-                        mtime = datetime.datetime.utcfromtimestamp(os.path.getmtime(sub_path))
+                        mtime = naive_utcfromtimestamp(os.path.getmtime(sub_path))
                         tmp_log.debug('{0} mtime:{1} last_check:{2}'.format(sub_path, mtime, last_check_time))
                         # found a new file
                         if mtime >= last_check_time:
@@ -473,7 +493,7 @@ class CheckPointUploader:
 
     # real main
     def _run(self):
-        last_check_time = datetime.datetime.utcnow()
+        last_check_time = naive_utcnow()
         tmpDump = '__putCheckPoint.json'
         url = self.panda_url + '/server/panda/put_checkpoint'
         while True:
@@ -481,7 +501,7 @@ class CheckPointUploader:
             self.tmpLog.debug('check fresh files')
             is_new = make_tarball_for_fresh_files(self.files_to_check, self.output_filename, last_check_time,
                                                   100, self.tmpLog)
-            last_check_time = datetime.datetime.utcnow()
+            last_check_time = naive_utcnow()
             if self.verbose:
                 self.tmpLog.debug('is new? {0}'.format(is_new))
             if is_new:
