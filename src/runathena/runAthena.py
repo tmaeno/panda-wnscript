@@ -63,9 +63,11 @@ except ImportError:
 import xml.dom.minidom
 import uuid
 try:
+    # python 2
     long
     basestring
 except NameError:
+    # python 3 compatibility workaround
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
