@@ -56,7 +56,6 @@ import sys
 import ast
 import glob
 import getopt
-import datetime
 try:
     import urllib.request as urllib
 except ImportError:
@@ -64,18 +63,20 @@ except ImportError:
 import xml.dom.minidom
 import uuid
 try:
+    # python 2
     long
     basestring
 except NameError:
+    # python 3 compatibility workaround
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, convert_args_to_dict
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, convert_args_to_dict, naive_utcnow
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
 
 print ("=== start with build timestamp: %s" % build_timestamp)
-print(datetime.datetime.utcnow())
+print(naive_utcnow())
 print("")
 
 # error code
@@ -1596,7 +1597,7 @@ if not debugFlag:
 # return
 print ('')
 print ("=== result ===")
-print(datetime.datetime.utcnow())
+print(naive_utcnow())
 if status:
     err_msg = "athena execution failed with {0}".format(status)
     print ("execute script: Running athena failed : %d" % status)

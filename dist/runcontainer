@@ -166,7 +166,7 @@ def singularity_sandbox(data={},source_image=''):
     # We need to sandbox because singularity has changed behaviour in 3.1.1
     # and produces a SIFG image when it exec from a docker registry
     os.environ['SINGULARITY_TMPDIR'] = '{0}/{1}'.format(os.environ['PILOT_HOME'],
-                                                        re.sub('\W+', '_', source_image))
+                                                        re.sub(r'\W+', '_', source_image))
 
     target_image = '{0}/{1}'.format(os.environ['SINGULARITY_TMPDIR'], 'image')
 
@@ -326,14 +326,14 @@ def execute(cmd=[]):
     # Run subprocess print stdout catch stderr in a generic way
     ch = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=1)
 
-    while ch.poll() == None:
+    while ch.poll() is None:
 
         if ch.stdout:
 
             for line in iter(ch.stdout.readline,b''):
                 logging.info(line.strip())
 
-        if ch.returncode == None and ch.stderr:
+        if ch.returncode is None and ch.stderr:
 
             for line in iter(ch.stderr.readline,b''):
                 logging.warning(line.strip())
@@ -401,10 +401,10 @@ def read_poolfilecatalog():
             # convert UTF8 to Raw
             pfn = str(pfnNode.getAttribute('name'))
             lfn = pfn.split('/')[-1]
-            lfn = re.sub('^([^:]+:)', '', lfn)
-            lfn = re.sub('\?site.*$', '', lfn)
-            lfn = re.sub('\?select.*$', '', lfn)
-            lfn = re.sub('\?GoogleAccessId.*$', '', lfn)
+            lfn = re.sub(r'^([^:]+:)', '', lfn)
+            lfn = re.sub(r'\?site.*$', '', lfn)
+            lfn = re.sub(r'\?select.*$', '', lfn)
+            lfn = re.sub(r'\?GoogleAccessId.*$', '', lfn)
             # append
             directTmpTurl[lfn] = pfn
     except:
@@ -445,7 +445,7 @@ def input():
                 # check first it is in the PFC in theory we have flattened
                 if filename in directPFNs:
                     # if it is a root URL add to the input_string
-                    if re.search('^\w+://', directPFNs[filename]):
+                    if re.search(r'^\w+://', directPFNs[filename]):
                         input_string += "%s," % directPFNs[filename]
                         out_map[key] = input_string[:-1]
                         logging.debug('input_string with URLs {}'.format(input_string[:-1]))
