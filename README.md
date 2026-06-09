@@ -5,8 +5,6 @@ Transformations running on PanDA worker nodes.
 > [!WARNING]
 > This package must remain Python 2 compatible. Scripts are deployed to and executed on worker nodes that may run old container images with Python 2 as the only available interpreter. Do not use Python 3-only syntax or standard library features.
 
-
-
 ## Installation
 
 ```bash
