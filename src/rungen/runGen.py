@@ -594,7 +594,7 @@ if not postprocess:
                         inStr += "%s," % inputFileMap[inputFile]
                 inStr = inStr[:-1]
                 # replace
-                newJobParams = re.sub('%'+tmpToken+'(?P<sname> |$|\"|\'|,)',inStr+'\g<sname>',newJobParams)
+                newJobParams = re.sub('%'+tmpToken+'(?P<sname> |$|\"|\'|,)',inStr+r'\g<sname>',newJobParams)
                 # write to file
                 tmpKeyName = tmpToken
                 if tmpKeyName in writeInputToTxtMap:
