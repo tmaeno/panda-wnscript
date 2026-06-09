@@ -57,7 +57,7 @@ for TARGET in "runMerge"
   rm -f $TMPZIP
   # include utils
   zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
-  # script main — include all file types
+  # script main - include all file types
   cd $EXESRCDIR
   zip -o $TMPZIP -r . -i *
   cd $WORKDIR
@@ -76,7 +76,7 @@ for TARGET in "preGoodRunList"
   rm -f $TMPZIP
   # include utils
   zip -o $TMPZIP -r pandawnutil -i "*.py" "*.c"
-  # script main — include all file types
+  # script main - include all file types
   cd $EXESRCDIR
   zip -o $TMPZIP -r . -i *
   cd $WORKDIR
@@ -86,7 +86,7 @@ for TARGET in "preGoodRunList"
   echo
 done
 
-# Targets that are standalone scripts — copied directly without zip packaging
+# Targets that are standalone scripts - copied directly without zip packaging
 for TARGET in "runcontainer"
   do
   echo "Start " $TARGET

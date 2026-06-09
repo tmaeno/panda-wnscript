@@ -13,7 +13,7 @@ git commit -m "Build binaries"
 git push
 ```
 
-`make.sh` packages each transformation into a self-extracting executable under `dist/`. Each executable is a shell stub prepended to a zip archive containing the Python source and utilities; it extracts and runs itself at execution time. The built binaries in `dist/` must be committed to the repository — a script running on the ATLAS PanDA servers periodically pulls this repository and picks up the binaries, which are then distributed to worker nodes on demand.
+`make.sh` packages each transformation into a self-extracting executable under `dist/`. Each executable is a shell stub prepended to a zip archive containing the Python source and utilities; it extracts and runs itself at execution time. The built binaries in `dist/` must be committed to the repository - a script running on the ATLAS PanDA servers periodically pulls this repository and picks up the binaries, which are then distributed to worker nodes on demand.
 
 ## Repository structure
 

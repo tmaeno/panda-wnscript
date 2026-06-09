@@ -36,7 +36,7 @@ def naive_utcnow():
     try:
         return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     except AttributeError:
-        # Python 2 — datetime.timezone does not exist
+        # Python 2 datetime.timezone does not exist
         return datetime.datetime.utcnow()
 
 def naive_utcfromtimestamp(timestamp):
@@ -46,7 +46,7 @@ def naive_utcfromtimestamp(timestamp):
     try:
         return datetime.datetime.fromtimestamp(timestamp, datetime.timezone.utc).replace(tzinfo=None)
     except AttributeError:
-        # Python 2 - datetime.timezone does not exist
+        # Python 2 datetime.timezone does not exist
         return datetime.datetime.utcfromtimestamp(timestamp)
 
 
