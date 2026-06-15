@@ -592,6 +592,16 @@ def convert_args_to_dict(execution_string):
         else:
             remaining_args.append(args[i])
             i += 1
+    # check if algjson is already present, if yes, merge the old dict with the new dict
+    for key in ['argjson', 'algJSON']:
+        if key in args_dict:
+            with open(args_dict[key]) as f:
+                old_args_dict = json.load(f)
+                old_args_dict.update(args_dict)
+                args_dict = old_args_dict
+            del args_dict[key]
+            break
+    # dump the dict to a JSON file and replace the args with --argjson <file>
     json_file_name = 'argjson_%s.json' % uuid.uuid4().hex
     with open(json_file_name, 'w') as f:
         json.dump(args_dict, f)
