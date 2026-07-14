@@ -58,7 +58,7 @@ def get_adler32sum(fname):
             cksum = zlib.adler32(d, cksum)
     f.close()
 
-    # remove the tailing 'L' charactor
+    # remove the tailing 'L' character
     cksum_str = re.sub(r'L$','', hex(cksum & 0xffffffff) )
 
     return cksum_str
@@ -309,10 +309,10 @@ if __name__ == '__main__':
             time.sleep(wait_time)
 
         ## compose copy command
-        ##  - timeout is increasd for each trial
+        ##  - timeout is increased for each trial
         copy_cmd = make_copycmd(protocol, vo, timeout*cnt_trial, src_surl, dest_surl)
 
-        ## faile to compose the full copy command, give another try for the whole loop
+        ## failed to compose the full copy command, give another try for the whole loop
         if not copy_cmd:
             printError('fail to compose copy command', errfile)
             continue
