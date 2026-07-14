@@ -848,7 +848,7 @@ if not postprocess:
                     break
             # check
             if tmpSetupDir is None:
-                print ("ERROR : cound not find setup.py in %s" % dbrFile)
+                print ("ERROR : could not find setup.py in %s" % dbrFile)
                 EC_DBRelease.exit()
             # run setup.py
             dbrSetupStr  = "import os\nos.chdir('%s')\nexec(open('setup.py').read())\nprint ('DBR setup finished')\nos.chdir('%s')\n" % \

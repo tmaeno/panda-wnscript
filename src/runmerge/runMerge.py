@@ -461,7 +461,7 @@ def __run_merge__(inputType, inputFiles, outputFile, cmdEnvSetup='', userCmd=Non
 
 def __replace_IN_OUT_arguments__(arg_str, inputFiles, outputFile):
     '''
-    replace %IN and %OUT withh proper values
+    replace %IN and %OUT with proper values
     '''
 
     arg_str_new = arg_str.replace('%IN', '"%s"' % (','.join( inputFiles )) ).replace( '%OUT', '"%s"' % outputFile )
