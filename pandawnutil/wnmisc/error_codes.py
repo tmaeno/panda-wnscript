@@ -25,6 +25,7 @@ _BASE_ERROR_CODES = {
     19: ('GOOD_RUN_LIST_FAILURE', 'Good Run List failure'),
     20: ('GET_GOOD_RUN_LIST', 'Failed to download Good Run List'),
     21: ('UNSUPPORTED_FILE_TYPE', 'Unsupported file type'),
+    22: ('CORRUPTED_OUTPUT', 'Output file is corrupted'),
 }
 
 # Offset for each worker node script
