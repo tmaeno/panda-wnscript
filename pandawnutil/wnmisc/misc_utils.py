@@ -111,6 +111,7 @@ def record_output_file_nentries(n_entries_map, jobReport='jobReport.json'):
                 print ("skip {0} since it is already recorded in {1}".format(file_name, jobReport))
                 continue
             sub_file = {'name': file_name, 'nentries': n_entries_map[file_name],
+                        'file_guid': str(uuid.uuid4()).upper(),
                         'file_size': os.stat(file_name).st_size
             }
             sub_files.append(sub_file)
