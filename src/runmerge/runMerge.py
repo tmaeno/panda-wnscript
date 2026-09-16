@@ -16,8 +16,8 @@ try:
 except ImportError:
     import urllib
 import uuid
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output
-from pandawnutil.root import root_utils
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, record_output_file_nentries
+from pandawnutil.root import root_utils, root_file_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
 
@@ -34,6 +34,7 @@ EC_OFILE_UNAVAILABLE    = ERROR_CODE.OUTPUT_MISSING       # merged file (the out
 EC_MERGE_SCRIPTNOFOUND  = ERROR_CODE.EXEC_SCRIPT_NOT_FOUND          # merging script cannot be found on WN
 EC_MERGE_ERROR          = ERROR_CODE.PAYLOAD_FAILURE          # catch-all for non-zero code returned from the underlying merging command
 EC_Tarball = ERROR_CODE.FAILED_TO_GET_TARBALL
+EC_CorruptedOutput      = ERROR_CODE.CORRUPTED_OUTPUT         # merged file (the output) is corrupted
 
 ## error codes not recognized yet by Panda
 EC_ITYPE_UNSUPPORTED    = ERROR_CODE.UNSUPPORTED_FILE_TYPE          # unsupported merging type
@@ -139,13 +140,7 @@ def __cmd_setup_env__(workDir, rootVer, cmtConfig):
 
     # setup root
     if rootVer != '':
-        rootBinDir = workDir + '/pandaRootBin'
-        # use setup script if available
-        if os.path.exists('%s/pandaUseCvmfSetup.sh' % rootBinDir):
-            with open('%s/pandaUseCvmfSetup.sh' % rootBinDir) as iFile:
-                tmpSetupEnvStr = iFile.read()
-        else:
-            rootCVMFS, tmpSetupEnvStr = root_utils.get_version_setup_string(rootVer, cmtConfig)
+        tmpSetupEnvStr = root_utils.get_setup_string(workDir, rootVer, cmtConfig)
         setupEnv += tmpSetupEnvStr
         setupEnv += ' root.exe -q;'
 
@@ -541,6 +536,7 @@ if __name__ == "__main__":
     preprocess = False
     postprocess = False
     mergeSingleFile = False
+    disableOutputFileCheck = False
 
     # command-line argument parsing
     opts = None
@@ -559,7 +555,8 @@ if __name__ == "__main__":
                                     "useFileStager", "usePFCTurl", "accessmode=",
                                     "skipInputByRetry=","writeInputToTxt=",
                                     "rootVer=", "enable-jem", "jem-config=", "cmtConfig=",
-                                    "useCMake", "preprocess", "postprocess", "mergeSingleFile"
+                                    "useCMake", "preprocess", "postprocess", "mergeSingleFile",
+                                    "disableOutputFileCheck"
                                     ])
     except getopt.GetoptError as err:
         print (str(err))
@@ -639,6 +636,8 @@ if __name__ == "__main__":
             postprocess = True
         if o == "--mergeSingleFile":
             mergeSingleFile = True
+        if o == "--disableOutputFileCheck":
+            disableOutputFileCheck = True
 
     # dump parameter
     try:
@@ -679,6 +678,7 @@ if __name__ == "__main__":
         print ("preprocess", preprocess)
         print ("postprocess", postprocess)
         print ("mergeSingleFile", mergeSingleFile)
+        print ("disableOutputFileCheck", disableOutputFileCheck)
         print ("===================")
     except Exception as e:
         print ('ERROR: missing parameters : %s' % str(e))
@@ -756,6 +756,7 @@ if __name__ == "__main__":
 
     # loop over all args
     EC = EC_OK
+    error_msg = None
     outputFiles = []
     print ('')
     print ("===== into main loop ====")
@@ -847,8 +848,9 @@ if __name__ == "__main__":
     pfcName = 'PoolFileCatalog.xml'
 
     if EC == EC_OK:
+        ## checking the availability of the output files
+        availableFiles = []
         for outputFile in outputFiles:
-            ## checking the availability of the output file
             if not os.path.exists(outputFile):
 
                 print ('ERROR: merging process finished; but output not found: %s' % outputFile)
@@ -856,8 +858,61 @@ if __name__ == "__main__":
                 EC = EC_OFILE_UNAVAILABLE
 
             else:
-                # copy results
-                commands_get_status_output('mv %s %s' % (outputFile, currentDir))
+                availableFiles.append(outputFile)
+
+        ## check if ROOT output files are corrupted and get the number of events
+        if EC == EC_OK:
+            # configure the check. cmdEnvSetup cannot be reused since it is undefined in
+            # postprocess and it ends with 'root.exe -q' and TestArea
+            doRootFileCheck = False
+            rootCheckSetupEnv = ''
+            if rootVer != '':
+                doRootFileCheck = True
+                rootCheckSetupEnv = root_utils.get_setup_string(workDir, rootVer, cmtConfig)
+            elif useAthenaPackages:
+                # the pilot sets up the release, i.e. ROOT is available in the current environment
+                doRootFileCheck = True
+            print ("=== check output ROOT files ===")
+            if disableOutputFileCheck:
+                print ("skipped since --disableOutputFileCheck is set")
+            elif not doRootFileCheck:
+                print ("skipped since ROOT is unavailable. Use --rootVer or --useAthenaPackages to enable the check")
+            else:
+                rootOutputs = [tmpName for tmpName in availableFiles
+                               if root_file_utils.is_root_file_name(tmpName)]
+                if not rootOutputs:
+                    print ("skipped since no ROOT output files are produced")
+                else:
+                    print ("checking {0}".format(str(rootOutputs)))
+                    checkResults = root_file_utils.check_root_files(rootOutputs, rootCheckSetupEnv)
+                    corruptedNames = []
+                    nEntriesMap = {}
+                    for tmpName in rootOutputs:
+                        tmpResult = checkResults[tmpName]
+                        print ("{0} : code={1} diag={2} nentries={3} tree={4}".format(
+                            tmpName, tmpResult['code'], tmpResult['diag'], tmpResult['nentries'],
+                            tmpResult['tree']))
+                        if tmpResult['trees']:
+                            print ("   trees : {0}".format(str(tmpResult['trees'])))
+                        if tmpResult['code']:
+                            corruptedNames.append("{0} ({1})".format(tmpName, tmpResult['diag']))
+                        elif tmpResult['nentries'] is not None:
+                            nEntriesMap[tmpName] = tmpResult['nentries']
+                    # record the number of events
+                    if nEntriesMap:
+                        print ("=== record the number of events ===")
+                        record_output_file_nentries(nEntriesMap)
+                    if corruptedNames:
+                        error_msg = "corrupted output files : {0}".format(', '.join(corruptedNames))
+                        # avoid too long error diag
+                        if len(error_msg) > 500:
+                            error_msg = error_msg[:497] + '...'
+                        EC = EC_CorruptedOutput
+            print ('')
+
+        # copy results
+        for outputFile in availableFiles:
+            commands_get_status_output('mv %s %s' % (outputFile, currentDir))
 
     ## create empty PoolFileCatalog.xml file if it's not available
     if not os.path.exists(pfcName):
@@ -896,4 +951,4 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print ('merge script: failed : StatusCode=%d' % EC)
-        EC.exit()
+        EC.exit(error_msg)

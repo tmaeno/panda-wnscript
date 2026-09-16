@@ -861,7 +861,7 @@ if nEntriesMap:
             finalEntriesMap[tmpName] = nEntriesMap[tmpName]
         else:
             finalEntriesMap[outputFiles[tmpSrcName]] = nEntriesMap[tmpName]
-    #record_output_file_nentries(finalEntriesMap)
+    record_output_file_nentries(finalEntriesMap)
     print ('')
 
 # copy results
@@ -928,8 +928,7 @@ elif missing_output_msg is not None:
     EC_MissingOutput.exit(missing_output_msg)
 elif corrupted_output_msg is not None:
     print("payload execution succeeded, but some output files are corrupted")
-    #EC_CorruptedOutput.exit(corrupted_output_msg)
-    sys.exit(0)
+    EC_CorruptedOutput.exit(corrupted_output_msg)
 else:
     print ("execute script: Running script was successful")
     sys.exit(0)

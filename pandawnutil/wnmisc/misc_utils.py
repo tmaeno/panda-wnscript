@@ -110,9 +110,10 @@ def record_output_file_nentries(n_entries_map, jobReport='jobReport.json'):
             if file_name in recorded_names:
                 print ("skip {0} since it is already recorded in {1}".format(file_name, jobReport))
                 continue
-            sub_file = {'name': file_name, 'nentries': n_entries_map[file_name]}
-            if os.path.exists(file_name):
-                sub_file['file_size'] = os.stat(file_name).st_size
+            sub_file = {'name': file_name, 'nentries': n_entries_map[file_name],
+                        'file_guid': str(uuid.uuid4()).upper(),
+                        'file_size': os.stat(file_name).st_size
+            }
             sub_files.append(sub_file)
         if not sub_files:
             return
