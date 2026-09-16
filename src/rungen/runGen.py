@@ -861,7 +861,7 @@ if nEntriesMap:
             finalEntriesMap[tmpName] = nEntriesMap[tmpName]
         else:
             finalEntriesMap[outputFiles[tmpSrcName]] = nEntriesMap[tmpName]
-    record_output_file_nentries(finalEntriesMap)
+    #record_output_file_nentries(finalEntriesMap)
     print ('')
 
 # copy results
