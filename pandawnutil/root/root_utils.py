@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 
@@ -36,3 +37,12 @@ def get_version_setup_string(root_ver, cmt_config):
                       "source $ATLAS_LOCAL_ROOT_BASE/packageSetups/atlasLocalROOTSetup.sh "
                       "--rootVersion={0} --skipConfirm; ").format(rootCVMFS)
     return rootCVMFS, tmpSetupEnvStr
+
+
+# get setup string, using the setup script made by buildGen if available
+def get_setup_string(work_dir, root_ver, cmt_config):
+    setup_script = os.path.join(work_dir, 'pandaRootBin', 'pandaUseCvmfSetup.sh')
+    if os.path.exists(setup_script):
+        with open(setup_script) as i_file:
+            return i_file.read()
+    return get_version_setup_string(root_ver, cmt_config)[-1]

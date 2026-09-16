@@ -19,7 +19,7 @@ except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
     propagate_missing_sandbox_error, naive_utcnow
-from pandawnutil.root import root_utils
+from pandawnutil.root import root_utils, root_file_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
 
@@ -32,6 +32,7 @@ EC_DBRelease   = EC.DB_RELEASE_FAILURE
 EC_WGET        = EC.FAILED_TO_GET_TARBALL
 EC_MissingOutput = EC.OUTPUT_MISSING
 EC_PayloadFailure = EC.PAYLOAD_FAILURE
+EC_CorruptedOutput = EC.CORRUPTED_OUTPUT
 
 print ("=== start with build timestamp: %s" % build_timestamp)
 print(naive_utcnow())
@@ -70,6 +71,9 @@ postprocess = False
 execWithRealFileNames = False
 fileToSave = ''
 fileToLoad = ''
+disableOutputFileCheck = False
+doRootFileCheck = False
+rootCheckSetupEnv = ''
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -84,7 +88,7 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "mergeOutput","mergeType=","mergeScript=",
                             "useRootCore","givenPFN","useMana","manaVer=",
                             "useCMake", "preprocess", "postprocess", "execWithRealFileNames",
-                            "fileToSave=", "fileToLoad="
+                            "fileToSave=", "fileToLoad=", "disableOutputFileCheck"
                             ])
 for o, a in opts:
     if o == "-l":
@@ -157,6 +161,8 @@ for o, a in opts:
         fileToLoad = a
     if o == '--fileToSave':
         fileToSave = a
+    if o == "--disableOutputFileCheck":
+        disableOutputFileCheck = True
 
 # dump parameter
 try:
@@ -196,6 +202,7 @@ try:
     print ("execWithRealFileNames", execWithRealFileNames)
     print ("fileToLoad", fileToLoad)
     print ("fileToSave", fileToSave)
+    print ("disableOutputFileCheck", disableOutputFileCheck)
     print ("===================")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -319,6 +326,8 @@ if not postprocess:
     # create cmt dir to setup Athena
     setupEnv = ''
     if useAthenaPackages:
+        # the pilot sets up the release, i.e. ROOT is available in the current environment
+        doRootFileCheck = True
         if not useCMake:
             tmpDir = '%s/%s/cmt' % (workDir, str(uuid.uuid4()))
             print ("Making tmpDir",tmpDir)
@@ -342,15 +351,12 @@ if not postprocess:
 
     # setup root
     if rootVer != '':
-        rootBinDir = workDir + '/pandaRootBin'
-        # use setup script if available
-        if os.path.exists('%s/pandaUseCvmfSetup.sh' % rootBinDir):
-            with open('%s/pandaUseCvmfSetup.sh' % rootBinDir) as iFile:
-                tmpSetupEnvStr = iFile.read()
-        else:
-            rootCVMFS, tmpSetupEnvStr = root_utils.get_version_setup_string(rootVer, cmtConfig)
+        tmpSetupEnvStr = root_utils.get_setup_string(workDir, rootVer, cmtConfig)
         setupEnv += tmpSetupEnvStr
         setupEnv += ' root.exe -q;'
+        # ROOT is available only with this setup string
+        doRootFileCheck = True
+        rootCheckSetupEnv = tmpSetupEnvStr
 
     # RootCore
     if useRootCore:
@@ -695,6 +701,56 @@ print ("=== ls in run dir : %s ===" % runDir)
 print (commands_get_status_output('ls -l')[-1])
 print ('')
 
+# check if ROOT output files are corrupted
+corrupted_output_msg = None
+if status == 0:
+    print ("=== check output ROOT files ===")
+    if disableOutputFileCheck:
+        print ("skipped since --disableOutputFileCheck is set")
+    else:
+        if postprocess:
+            # setupEnv is not constructed in postprocess, i.e. the check is configured here
+            if rootVer != '':
+                doRootFileCheck = True
+                rootCheckSetupEnv = root_utils.get_setup_string(workDir, rootVer, cmtConfig)
+            elif useAthenaPackages:
+                doRootFileCheck = True
+        if not doRootFileCheck:
+            print ("skipped since ROOT is unavailable. Use --rootVer or --useAthenaPackages to enable the check")
+        else:
+            # resolve output file names with the same convention as the rename loop below
+            rootOutputs = []
+            localFiles = os.listdir('.')
+            for tmpName in outputFiles:
+                if tmpName.startswith('regex|'):
+                    tmpPattern = re.sub(r'^[^|]+\|', '', tmpName)
+                    tmpCandidates = [tmpFile for tmpFile in localFiles if re.search(tmpPattern, tmpFile)]
+                elif tmpName.find('*') != -1:
+                    tmpCandidates = glob.glob(tmpName)
+                else:
+                    tmpCandidates = [tmpName]
+                for tmpCandidate in tmpCandidates:
+                    if root_file_utils.is_root_file_name(tmpCandidate) and os.path.isfile(tmpCandidate) \
+                            and tmpCandidate not in rootOutputs:
+                        rootOutputs.append(tmpCandidate)
+            if not rootOutputs:
+                print ("skipped since no ROOT output files are produced")
+            else:
+                print ("checking {0}".format(str(rootOutputs)))
+                checkResults = root_file_utils.check_root_files(rootOutputs, rootCheckSetupEnv)
+                corruptedNames = []
+                for tmpName in rootOutputs:
+                    tmpCode, tmpDiag = checkResults[tmpName]
+                    print ("{0} : code={1} diag={2}".format(tmpName, tmpCode, tmpDiag))
+                    if tmpCode:
+                        corruptedNames.append("{0} ({1})".format(tmpName, tmpDiag))
+                if corruptedNames:
+                    corrupted_output_msg = "corrupted output files : {0}".format(', '.join(corruptedNames))
+                    # avoid too long error diag
+                    if len(corrupted_output_msg) > 500:
+                        corrupted_output_msg = corrupted_output_msg[:497] + '...'
+    print ('')
+
 if fileToSave:
     print("\n=== saving file ===")
     fileToSaveSrc, fileToSaveDst = fileToSave.split(':')
@@ -843,6 +899,10 @@ if status:
 elif missing_output_msg is not None:
     print("payload execution succeeded, but some output files are missing")
     EC_MissingOutput.exit(missing_output_msg)
+elif corrupted_output_msg is not None:
+    print("payload execution succeeded, but some output files are corrupted")
+    #EC_CorruptedOutput.exit(corrupted_output_msg)
+    sys.exit(0)
 else:
     print ("execute script: Running script was successful")
     sys.exit(0)
