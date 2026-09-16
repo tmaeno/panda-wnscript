@@ -18,7 +18,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, naive_utcnow
+    propagate_missing_sandbox_error, naive_utcnow, record_output_file_nentries
 from pandawnutil.root import root_utils, root_file_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
@@ -701,8 +701,10 @@ print ("=== ls in run dir : %s ===" % runDir)
 print (commands_get_status_output('ls -l')[-1])
 print ('')
 
-# check if ROOT output files are corrupted
+# check if ROOT output files are corrupted and get the number of events
 corrupted_output_msg = None
+rootOutputSrcMap = {}
+nEntriesMap = {}
 if status == 0:
     print ("=== check output ROOT files ===")
     if disableOutputFileCheck:
@@ -726,13 +728,16 @@ if status == 0:
                     tmpPattern = re.sub(r'^[^|]+\|', '', tmpName)
                     tmpCandidates = [tmpFile for tmpFile in localFiles if re.search(tmpPattern, tmpFile)]
                 elif tmpName.find('*') != -1:
+                    # archived with tar, i.e. the number of events is not recorded
                     tmpCandidates = glob.glob(tmpName)
+                    tmpName = None
                 else:
                     tmpCandidates = [tmpName]
                 for tmpCandidate in tmpCandidates:
                     if root_file_utils.is_root_file_name(tmpCandidate) and os.path.isfile(tmpCandidate) \
                             and tmpCandidate not in rootOutputs:
                         rootOutputs.append(tmpCandidate)
+                        rootOutputSrcMap[tmpCandidate] = tmpName
             if not rootOutputs:
                 print ("skipped since no ROOT output files are produced")
             else:
@@ -740,10 +745,15 @@ if status == 0:
                 checkResults = root_file_utils.check_root_files(rootOutputs, rootCheckSetupEnv)
                 corruptedNames = []
                 for tmpName in rootOutputs:
-                    tmpCode, tmpDiag = checkResults[tmpName]
-                    print ("{0} : code={1} diag={2}".format(tmpName, tmpCode, tmpDiag))
-                    if tmpCode:
-                        corruptedNames.append("{0} ({1})".format(tmpName, tmpDiag))
+                    tmpResult = checkResults[tmpName]
+                    print ("{0} : code={1} diag={2} nentries={3} tree={4}".format(
+                        tmpName, tmpResult['code'], tmpResult['diag'], tmpResult['nentries'], tmpResult['tree']))
+                    if tmpResult['trees']:
+                        print ("   trees : {0}".format(str(tmpResult['trees'])))
+                    if tmpResult['code']:
+                        corruptedNames.append("{0} ({1})".format(tmpName, tmpResult['diag']))
+                    elif tmpResult['nentries'] is not None:
+                        nEntriesMap[tmpName] = tmpResult['nentries']
                 if corruptedNames:
                     corrupted_output_msg = "corrupted output files : {0}".format(', '.join(corruptedNames))
                     # avoid too long error diag
@@ -836,6 +846,23 @@ try:
     misc_utils.add_user_job_metadata()
 except Exception:
     pass
+
+# record the number of events with the final output file names
+if nEntriesMap:
+    print ("\n=== record the number of events ===")
+    finalEntriesMap = {}
+    for tmpName in nEntriesMap:
+        tmpSrcName = rootOutputSrcMap[tmpName]
+        if tmpSrcName is None:
+            # archived with tar
+            continue
+        if tmpSrcName.startswith('regex|'):
+            # the file name is unchanged
+            finalEntriesMap[tmpName] = nEntriesMap[tmpName]
+        else:
+            finalEntriesMap[outputFiles[tmpSrcName]] = nEntriesMap[tmpName]
+    record_output_file_nentries(finalEntriesMap)
+    print ('')
 
 # copy results
 local_files = os.listdir('.')

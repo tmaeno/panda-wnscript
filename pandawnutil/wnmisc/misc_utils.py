@@ -87,6 +87,46 @@ def add_user_job_metadata(userJobMetadata='userJobMetadata.json'):
         json.dump(merged_dict, f)
 
 
+# record the number of events of output files in job report
+def record_output_file_nentries(n_entries_map, jobReport='jobReport.json'):
+    if not n_entries_map:
+        return
+    try:
+        if os.path.exists(jobReport):
+            with open(jobReport) as f:
+                report_dict = json.load(f)
+        else:
+            report_dict = dict()
+        report_dict.setdefault('files', dict())
+        report_dict['files'].setdefault('output', [])
+        # collect file names which are already recorded by the payload
+        recorded_names = set()
+        for tmp_output in report_dict['files']['output']:
+            for tmp_sub_file in tmp_output.get('subFiles', []):
+                if 'name' in tmp_sub_file:
+                    recorded_names.add(tmp_sub_file['name'])
+        sub_files = []
+        for file_name in n_entries_map:
+            if file_name in recorded_names:
+                print ("skip {0} since it is already recorded in {1}".format(file_name, jobReport))
+                continue
+            sub_file = {'name': file_name, 'nentries': n_entries_map[file_name]}
+            if os.path.exists(file_name):
+                sub_file['file_size'] = os.stat(file_name).st_size
+            sub_files.append(sub_file)
+        if not sub_files:
+            return
+        report_dict['files']['output'].append({'subFiles': sub_files})
+        # version number
+        if 'reportVersion' not in report_dict:
+            report_dict['reportVersion'] = '1.0.0'
+        with open(jobReport, 'w') as f:
+            json.dump(report_dict, f)
+        print ("added to {0} : {1}".format(jobReport, str(sub_files)))
+    except Exception as e:
+        print ("WARNING: failed to record the number of events in {0} : {1}".format(jobReport, str(e)))
+
+
 # make a tarball for log files in sub dirs
 def make_log_tarball_in_sub_dirs(tar_file_path):
     try:
