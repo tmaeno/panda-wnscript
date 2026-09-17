@@ -44,6 +44,32 @@ Each script in `src/<name>/` has a `version` file that determines the name of th
 
 The shared `pandawnutil/` library provides utilities common to all scripts: misc helpers, error codes, ROOT setup, file staging, job tracing, and logging.
 
-## Release Notes
+## End-to-end tests
 
-See [ChangeLog.txt](ChangeLog.txt)
+New binaries can be tested locally before being deployed to the PanDA server.
+However, these tests only exercise the binaries themselves in isolation. They do not verify communication with the pilot or identify potential side effects on upstream components.
+
+The following procedure can be used to perform an end-to-end test.
+
+First, push the new binary to dist/ on GitHub. For example:
+```
+git add dist/runGen-dev dist/runMerge-dev
+git commit
+git push
+```
+The new binaries will be automatically deployed to the PanDA server nodes within approximately one hour.
+Once the deployment is complete, the binaries can be used for an end-to-end test. For example:
+Then, e.g,
+```
+prun --exec "cp -L %IN output.root" --nFiles 1 --transPath http://pandaserver.cern.ch:25080/trf/user/runGen-dev --inDS blah --outDS blah --output output.root --mergeOutput --mergeTransPath http://pandaserver.cern.ch:25080/trf/user/runMerge-dev --forceStaged --useAthenaPackages
+```
+This runs the new binaries through the normal PanDA workflow, allowing them to be thoroughly tested before replacing the production binaries.
+
+To deploy the tested binaries to production, copy them to the current version tags and push them to GitHub. For example:
+```
+cp dist/runGen-dev dist/runGen-00-00-02
+cp dist/runMerge-dev dist/runMerge-00-00-02
+git add dist/runGen-00-00-02 dist/runMerge-00-00-02
+git commit
+git push
+```
