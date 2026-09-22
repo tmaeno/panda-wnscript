@@ -310,6 +310,21 @@ def record_exec_directory():
     return currentDir
 
 
+# remove stale report files which can come from the sandbox
+def remove_stale_report_files(file_names=None):
+    if file_names is None:
+        file_names = ['PoolFileCatalog.xml', 'jobReport.json']
+    for file_name in file_names:
+        # lexists to catch dangling symlinks too
+        if os.path.lexists(file_name):
+            print ("WARNING : removing stale %s in %s since it can confuse the payload and the pilot" %
+                   (file_name, os.getcwd()))
+            try:
+                os.remove(file_name)
+            except Exception as e:
+                print ("WARNING : failed to remove %s : %s" % (file_name, str(e)))
+
+
 # get HPO sample
 def get_hpo_sample(idds_url, task_id, sample_id, certfile, keyfile):
     url = os.path.join(idds_url, 'idds', 'hpo', str(task_id), 'null', str(sample_id), 'null', 'null')

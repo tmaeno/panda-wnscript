@@ -18,7 +18,7 @@ try:
 except ImportError:
     import urllib
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, naive_utcnow, record_output_file_nentries
+    propagate_missing_sandbox_error, naive_utcnow, record_output_file_nentries, remove_stale_report_files
 from pandawnutil.root import root_utils, root_file_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
@@ -382,6 +382,10 @@ if not preprocess and not postprocess and 'unset LD_PRELOAD' not in jobParams:
 commands_get_status_output('mkdir %s' % runDir)
 # go to run dir
 os.chdir(runDir)
+
+# remove stale report files which can come from the sandbox
+if not postprocess:
+    remove_stale_report_files()
 
 # preprocess or single-step execution
 secrets_source = None

@@ -16,7 +16,8 @@ try:
 except ImportError:
     import urllib
 import uuid
-from pandawnutil.wnmisc.misc_utils import commands_get_status_output, record_output_file_nentries
+from pandawnutil.wnmisc.misc_utils import commands_get_status_output, record_output_file_nentries, \
+    remove_stale_report_files
 from pandawnutil.root import root_utils, root_file_utils
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
@@ -746,6 +747,10 @@ if __name__ == "__main__":
         ## create and change to rundir
         commands_get_status_output('mkdir -p %s' % runDir)
     os.chdir(runDir)
+
+    # remove stale report files which can come from the sandbox
+    if not postprocess:
+        remove_stale_report_files()
 
     # make dump file for preprocess
     dumpFileName = os.path.join(currentDir, '__run_main_exec.sh')
