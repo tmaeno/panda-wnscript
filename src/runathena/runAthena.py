@@ -71,7 +71,8 @@ except NameError:
     long = int
     basestring = str
 from pandawnutil.wnmisc.misc_utils import commands_get_status_output, get_file_via_http, record_exec_directory,\
-    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, convert_args_to_dict, naive_utcnow
+    propagate_missing_sandbox_error, make_log_tarball_in_sub_dirs, tweak_job_options, convert_args_to_dict, \
+    naive_utcnow, remove_stale_report_files
 from pandawnutil.wnmisc.error_codes import ErrorCodes
 from pandawnutil.build_timestamp import build_timestamp
 
@@ -661,6 +662,8 @@ if not postprocess:
 os.chdir(runDir)
 
 if not postprocess:
+    # remove stale report files which can come from the sandbox
+    remove_stale_report_files()
     # make cmt dir
     cmtDir = '%s/%s/cmt' % (workDir, str(uuid.uuid4()))
     commands_get_status_output('mkdir -p %s' % cmtDir)
@@ -702,7 +705,6 @@ def _createPoolFC(pfnMap):
 if not postprocess:
     # build pool catalog
     print ("\n=== build pool catalog ===")
-    commands_get_status_output('rm -f PoolFileCatalog.xml')
     if len(inputFiles+minbiasFiles+cavernFiles+beamHaloFiles+beamGasFiles) > 0:
         # POOL or BS files
         filesToPfcMap = {}
