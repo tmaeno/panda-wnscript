@@ -59,7 +59,6 @@ git push
 ```
 The new binaries will be automatically deployed to the PanDA server nodes within approximately one hour.
 Once the deployment is complete, the binaries can be used for an end-to-end test. For example:
-Then, e.g,
 ```
 prun --exec "cp -L %IN output.root" --nFiles 1 --transPath http://pandaserver.cern.ch:25080/trf/user/runGen-dev --inDS blah --outDS blah --output output.root --mergeOutput --mergeTransPath http://pandaserver.cern.ch:25080/trf/user/runMerge-dev --forceStaged --useAthenaPackages
 ```
