@@ -74,6 +74,7 @@ fileToLoad = ''
 disableOutputFileCheck = False
 doRootFileCheck = False
 rootCheckSetupEnv = ''
+allowNoOutput = []
 
 # command-line parameters
 opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
@@ -88,7 +89,8 @@ opts, args = getopt.getopt(sys.argv[1:], "i:o:r:j:l:p:u:a:",
                             "mergeOutput","mergeType=","mergeScript=",
                             "useRootCore","givenPFN","useMana","manaVer=",
                             "useCMake", "preprocess", "postprocess", "execWithRealFileNames",
-                            "fileToSave=", "fileToLoad=", "disableOutputFileCheck"
+                            "fileToSave=", "fileToLoad=", "disableOutputFileCheck",
+                            "allowNoOutput="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -163,6 +165,8 @@ for o, a in opts:
         fileToSave = a
     if o == "--disableOutputFileCheck":
         disableOutputFileCheck = True
+    if o == "--allowNoOutput":
+        allowNoOutput = [x for x in a.split(',') if x]
 
 # dump parameter
 try:
@@ -203,6 +207,7 @@ try:
     print ("fileToLoad", fileToLoad)
     print ("fileToSave", fileToSave)
     print ("disableOutputFileCheck", disableOutputFileCheck)
+    print ("allowNoOutput", allowNoOutput)
     print ("===================")
 except Exception as e:
     print ('ERROR: missing parameters : %s' % str(e))
@@ -801,6 +806,9 @@ for oldName in outputFiles:
         print (commands_get_status_output('tar cvfz %s %s' % (newName,oldName))[-1])
     else:
         if not os.path.exists(oldName):
+            if oldName in allowNoOutput or newName in allowNoOutput:
+                print ("{0} is missing but allowed by --allowNoOutput".format(oldName))
+                continue
             err_msg = "expected output {0} is missing".format(oldName)
             missing_output_msg = err_msg
             break

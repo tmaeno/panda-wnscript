@@ -146,6 +146,7 @@ useAthenaMT = False
 preprocess = False
 postprocess = False
 useArgJson = False
+allowNoOutput = []
 
 opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                            ["pilotpars","debug","oldPrefix=","newPrefix=",
@@ -163,7 +164,8 @@ opts, args = getopt.getopt(sys.argv[1:], "l:r:j:i:o:bcp:u:f:a:m:n:e",
                             "enable-jem","jem-config=",
                             "mergeOutput","mergeType=","mergeScript=",
                             "noExpandDBR","useCMake","useAthenaMT",
-                            "preprocess", "postprocess", "useArgJson"
+                            "preprocess", "postprocess", "useArgJson",
+                            "allowNoOutput="
                             ])
 for o, a in opts:
     if o == "-l":
@@ -280,6 +282,8 @@ for o, a in opts:
         postprocess = True
     if o == "--useArgJson":
         useArgJson = True
+    if o == "--allowNoOutput":
+        allowNoOutput = [x for x in a.split(',') if x]
 
 # save current dir
 currentDir = record_exec_directory()
@@ -343,6 +347,7 @@ try:
     print ("preprocess", preprocess)
     print ("postprocess", postprocess)
     print ("useArgJson", useArgJson)
+    print ("allowNoOutput", allowNoOutput)
     print ("===================")
 except Exception:
     EC_MissingArg.exit("Failed to parse command-line arguments. Please check the input parameters.")
@@ -1559,6 +1564,9 @@ for file in outputFiles.values():
         for aaT in file:
             tmp_file_name = aaT[-1]
             if not os.path.exists(tmp_file_name):
+                if aaT[0] in allowNoOutput or tmp_file_name in allowNoOutput:
+                    print ("{0} is missing but allowed by --allowNoOutput".format(tmp_file_name))
+                    continue
                 err_msg = "expected output {0} is missing".format(tmp_file_name)
                 missing_output_msg = err_msg
                 if missing_output_msg is not None:
@@ -1566,6 +1574,9 @@ for file in outputFiles.values():
             commands_get_status_output('mv %s %s' % (tmp_file_name,currentDir))
     else:
         if not os.path.exists(file):
+            if file in allowNoOutput:
+                print ("{0} is missing but allowed by --allowNoOutput".format(file))
+                continue
             err_msg = "expected output {0} is missing".format(file)
             missing_output_msg = err_msg
             break
