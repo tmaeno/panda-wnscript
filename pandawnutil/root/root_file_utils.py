@@ -28,6 +28,8 @@ _MAX_TREE_DEPTH = 3
 # FILE* and TString are used instead of std::ofstream and std::string since they are
 # better supported by the ROOT interpreter
 _MACRO_TEMPLATE = """#include <stdio.h>
+#include <string>
+#include <unordered_map>
 #include "TClass.h"
 #include "TDirectory.h"
 #include "TFile.h"
@@ -42,11 +44,24 @@ void {func_name}_scan(TDirectory* dir, const char* fileName, TString prefix, int
    if (depth > {max_depth}) return;
    TList* keyList = dir->GetListOfKeys();
    if (!keyList) return;
-   for (int i = 0; i < keyList->GetSize(); ++i) {{
-      TKey* key = dynamic_cast<TKey*>(keyList->At(i));
+   // TIter is used instead of TList::At() since At() walks the list from the head and
+   // the loop becomes O(N^2) for directories with many keys
+   // get the latest cycle of each name in the first pass
+   std::unordered_map<std::string, Short_t> maxCycle;
+   TIter nextCycle(keyList);
+   TObject* obj;
+   while ((obj = nextCycle())) {{
+      TKey* key = dynamic_cast<TKey*>(obj);
+      if (!key) continue;
+      Short_t& cycle = maxCycle[key->GetName()];
+      if (key->GetCycle() > cycle) cycle = key->GetCycle();
+   }}
+   TIter next(keyList);
+   while ((obj = next())) {{
+      TKey* key = dynamic_cast<TKey*>(obj);
       if (!key) continue;
       // take only the latest cycle of each name
-      if (dir->GetKey(key->GetName()) != key) continue;
+      if (key->GetCycle() != maxCycle[key->GetName()]) continue;
       TClass* cls = TClass::GetClass(key->GetClassName());
       if (!cls) continue;
       if (cls->InheritsFrom(TTree::Class())) {{
